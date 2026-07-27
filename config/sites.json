@@ -7,7 +7,7 @@
   },
   "auth": {
     "url": "http://127.0.0.1:8790",
-    "productionUrl": "https://rapid-smithsonian-scroll-laughing.trycloudflare.com",
+    "productionUrl": "https://groundwater-samples-penalties-postage.trycloudflare.com",
     "mode": "email-otp",
     "note": "本機埠分配：個人 WikiNB 用 4321／8787；KCIS 用 4322／8790。登入頁 http://127.0.0.1:4322/WikiNB-KCIS/login"
   },
