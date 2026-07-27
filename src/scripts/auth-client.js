@@ -119,7 +119,7 @@ export function getAuthMixedContentBlock() {
 }
 
 export const REFRESH_AFTER_HOST_HINT =
-  'Auth 啟動後，請強制重新整理本頁（Mac：Cmd+Shift+R）。';
+  'Auth／Tunnel 啟動後，請強制重新整理本頁（Mac：Cmd+Shift+R）。若 Tunnel 網址變了，還要更新 productionUrl 並重新部署 Pages。';
 
 export const CODE_SENT_HINT =
   '驗證碼已寄至你的 Email 信箱，請查收（若沒看到請看垃圾郵件）。10 分鐘內有效。';
@@ -131,6 +131,8 @@ function hostCommands() {
   return {
     localLogin: 'http://127.0.0.1:4322/WikiNB-KCIS/login',
     auth: `cd ${q} && npm run auth`,
+    tunnel: `cloudflared tunnel --url http://127.0.0.1:8790`,
+    oneCommand: `cd ${q} && ./host/one-command-mac.sh`,
     dev: `cd ${q} && npm run dev`,
   };
 }
@@ -151,10 +153,15 @@ export async function diagnoseAuthConnection() {
     return {
       ...blocked,
       title: '線上站尚無雲端後端',
-      hint: '請改用本機開發登入（下方指令）。筆記已改存 Google Drive，但登入 API 仍須本機先跑起來。',
+      hint: 'GitHub Pages 無法直連本機。請啟動 Auth + Cloudflare Tunnel，或暫時用本機登入頁。',
       commands: [
-        { id: 'auth', label: '終端機 1：啟動 Auth（後端）', cmd: cmds.auth },
-        { id: 'dev', label: '終端機 2：啟動網站', cmd: cmds.dev },
+        { id: 'auth', label: '終端機 1：啟動 Auth（埠 8790）', cmd: cmds.auth },
+        { id: 'tunnel', label: '終端機 2：啟動 Tunnel（讓 github.io 連得到）', cmd: cmds.tunnel },
+        {
+          id: 'one',
+          label: '（可選）一鍵：Auth + Tunnel',
+          cmd: cmds.oneCommand,
+        },
       ],
     };
   }
@@ -175,16 +182,31 @@ export async function diagnoseAuthConnection() {
       return {
         online: false,
         reason: production ? 'cloud-offline' : 'need-local-dev',
-        title: production ? '雲端 Auth 目前離線' : '請改用本機登入頁',
+        title: production ? '雲端 Auth 目前離線' : '請啟動 Auth + Tunnel',
         message: production
-          ? 'productionUrl 連不上。請確認 Cloud Run／後端已啟動，或暫時改用本機登入。'
-          : 'GitHub Pages 只有畫面。過渡期請在本機啟動 Auth＋網站後，用本機登入頁（不要再開舊的 Tunnel 主機）。',
+          ? `productionUrl 連不上（目前設定：${production}）。github.io 只顯示畫面，登入要靠本機 Auth + Cloudflare Tunnel。請依下方開兩個終端機；Mac 需保持清醒。`
+          : 'GitHub Pages 只有畫面。請先啟動本機 Auth，再用 Cloudflare Tunnel 公開 :8790，並把新網址寫入 productionUrl 後重新部署。',
         hint: REFRESH_AFTER_HOST_HINT,
         commands: [
           { id: 'auth', label: '終端機 1：啟動 Auth', cmd: cmds.auth },
-          { id: 'dev', label: '終端機 2：啟動網站', cmd: cmds.dev },
+          {
+            id: 'tunnel',
+            label: '終端機 2：啟動 Tunnel（固定指令）',
+            cmd: cmds.tunnel,
+          },
+          {
+            id: 'one',
+            label: '（可選）一鍵腳本：Auth + Tunnel + 寫入 productionUrl',
+            cmd: cmds.oneCommand,
+          },
+          {
+            id: 'check',
+            label: '除錯：確認本機 Auth 是否健康',
+            cmd: 'curl -s http://127.0.0.1:8790/api/health',
+          },
         ],
         authBase: getAuthBase(),
+        productionUrl: production,
       };
     }
 
@@ -193,7 +215,7 @@ export async function diagnoseAuthConnection() {
         online: false,
         reason: 'local-auth-offline',
         title: '本機 Auth 未連線',
-        message: '請先在終端機執行 npm run auth（埠 8790），再重新整理本頁。',
+        message: '請先在終端機執行 npm run auth（埠 8790），再重新整理本頁。本機開發不需要 Tunnel。',
         hint: '建議開兩個終端機：一個 Auth、一個 npm run dev。',
         commands: [
           { id: 'auth', label: '終端機 1：啟動 Auth', cmd: cmds.auth },
