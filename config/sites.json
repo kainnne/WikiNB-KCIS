@@ -7,9 +7,9 @@
   },
   "auth": {
     "url": "http://127.0.0.1:8790",
-    "productionUrl": "Binary file /Users/kaine/Desktop/Projects/WikiNB_for_KCIS/host/.run/tunnel.log matches",
+    "productionUrl": "https://poor-mainstream-prescription-burner.trycloudflare.com",
     "mode": "email-otp",
-    "note": "本機埠分配：個人 WikiNB 用 4321／8787；KCIS 用 4322／8790。登入頁 http://127.0.0.1:4322/WikiNB-KCIS/login"
+    "note": "本機測試登入：http://127.0.0.1:4322/WikiNB-KCIS/login（埠：網站 4322、Auth 8790）。個人 WikiNB 是另一專案（4321／8787）勿混用。診斷：./host/doctor-mac.sh；一鍵本機：./host/local-login-mac.sh；線上 github.io 需 Tunnel + productionUrl push。"
   },
   "sites": {
     "navigator": {
