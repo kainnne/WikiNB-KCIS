@@ -1,15 +1,17 @@
 /**
- * Client-side wiki search for KCIS (teacher + subject keywords).
- * UI strings follow locale; note title/body stay as authored (no auto-translate).
- *
- * 未登入：只顯示預覽字卡；標題／展開／開啟一律導向登入。
+ * Client-side wiki search for KCIS.
+ * 未登入：只顯示預覽字卡；點擊／展開 → 登入。
+ * 已登入提示（local token）：連到 /note（真正權限由 note 頁 requireLogin 把關）。
+ * 一律不連舊的 /wiki/ 全文頁。
  */
 import { t, getLocale } from './i18n.js';
-import { loginHrefWithNext } from './md-render.js';
+import { gatedNoteHref, notePageHref } from './md-render.js';
+import { hasSessionHint } from './auth-client.js';
 
 export function createWikiSearch(initialIndex, options = {}) {
   let searchIndex = Array.isArray(initialIndex) ? initialIndex : [];
-  let authed = Boolean(options.authed);
+  /** 與 hasSessionHint 對齊；僅影響連結目標，不代表伺服器已驗證 */
+  let authed = options.authed != null ? Boolean(options.authed) : hasSessionHint();
 
   const escapeHtml = (text) =>
     String(text ?? '')
@@ -31,8 +33,6 @@ export function createWikiSearch(initialIndex, options = {}) {
       (page.keywords || []).join(' '),
       (page.keywordsEn || []).join(' '),
       (page.tags || []).join(' '),
-      // 未登入不拿內文當搜尋（避免暗示可讀全文）；有 description／title 即可
-      authed ? page.bodyText : '',
     ]
       .join(' ')
       .toLowerCase();
@@ -55,38 +55,29 @@ export function createWikiSearch(initialIndex, options = {}) {
 
   const getBase = () => document.documentElement.dataset.base || '/';
 
-  const loginHrefFor = (page) => {
+  /** 唯一筆記目標：/note?... */
+  const noteHrefFor = (page) => {
     const base = getBase();
-    const target = pageHrefAuthed(page);
-    // next 存相對站內路徑
-    try {
-      const u = new URL(target, window.location.origin);
-      return loginHrefWithNext(`${u.pathname}${u.search}`, base);
-    } catch {
-      return loginHrefWithNext(`${base}search`, base);
-    }
+    if (page.href && String(page.href).includes('/note?')) return page.href;
+    const noteSlug =
+      page.noteSlug ||
+      String(page.slug || '')
+        .split('/')
+        .pop();
+    return notePageHref({
+      teacherId: page.teacherId || '',
+      subjectId: page.subjectId || '',
+      slug: noteSlug,
+      base,
+    });
   };
 
-  const pageHrefAuthed = (page) => {
-    const base = getBase();
-    if (page.href) return page.href;
-    if (page.live && page.teacherId && page.subjectId && (page.noteSlug || page.slug)) {
-      const noteSlug =
-        page.noteSlug ||
-        String(page.slug || '')
-          .split('/')
-          .pop();
-      const qs = new URLSearchParams({
-        teacherId: page.teacherId,
-        subjectId: page.subjectId,
-        slug: noteSlug,
-      });
-      return `${base}note?${qs.toString()}`;
-    }
-    return `${base}wiki/${page.slug}`;
+  const pageHref = (page) => {
+    const note = noteHrefFor(page);
+    // 有 token 提示或伺服器已確認登入 → note；否則 login?next=
+    if (hasSessionHint() || authed) return note;
+    return gatedNoteHref(note, getBase());
   };
-
-  const pageHref = (page) => (authed ? pageHrefAuthed(page) : loginHrefFor(page));
 
   const subjectLabel = (page) =>
     getLocale() === 'en' ? page.subjectEn || page.subject : page.subject;
@@ -94,27 +85,23 @@ export function createWikiSearch(initialIndex, options = {}) {
   const renderItem = (page) => {
     const subject = subjectLabel(page);
     const href = pageHref(page);
+    const canExpand = hasSessionHint() || authed;
     const keywordsHtml = [
-      page.teacher
-        ? `<span class="tag-keyword">${escapeHtml(page.teacher)}</span>`
-        : '',
+      page.teacher ? `<span class="tag-keyword">${escapeHtml(page.teacher)}</span>` : '',
       subject
         ? `<span class="tag-keyword" data-locale-text data-zh="${escapeHtml(page.subject)}" data-en="${escapeHtml(page.subjectEn || page.subject)}">${escapeHtml(subject)}</span>`
         : '',
-      page.live && authed ? `<span class="tag-badge text-[10px]">live</span>` : '',
-      !authed
+      !canExpand
         ? `<span class="tag-badge text-[10px]">${escapeHtml(t('search.loginToRead') || '登入後閱讀')}</span>`
         : '',
     ].join('');
 
-    const expandDisabled = !authed;
-    const panelHtml = authed
-      ? page.html ||
-        `<p class="text-sm text-kc-muted">${escapeHtml(t('search.openPage'))}</p>`
-      : `<p class="text-sm text-kc-muted">${escapeHtml(t('search.loginToReadHint') || '請先登入後再展開全文。點標題即可前往登入。')}</p>`;
+    const panelHtml = canExpand
+      ? `<p class="text-sm text-kc-muted">${escapeHtml(t('search.openPage'))}</p>`
+      : `<p class="text-sm text-kc-muted">${escapeHtml(t('search.loginToReadHint') || '請先登入後再閱讀全文。')}</p>`;
 
     return `
-      <article class="wiki-item" data-slug="${escapeHtml(page.slug)}" data-requires-login="${authed ? '0' : '1'}">
+      <article class="wiki-item" data-slug="${escapeHtml(page.slug)}" data-requires-login="${canExpand ? '0' : '1'}">
         <div class="flex items-start gap-2 px-4 py-5 md:gap-3 md:px-6">
           <button
             type="button"
@@ -122,7 +109,7 @@ export function createWikiSearch(initialIndex, options = {}) {
             aria-expanded="false"
             aria-controls="content-${escapeHtml(page.slug)}"
             aria-label="${escapeHtml(t('search.expand', { title: page.title }))}"
-            data-login-gate="${expandDisabled ? '1' : '0'}"
+            data-login-gate="${canExpand ? '0' : '1'}"
           >
             <span class="wiki-chevron text-sm transition-transform">▸</span>
           </button>
@@ -141,7 +128,7 @@ export function createWikiSearch(initialIndex, options = {}) {
         <div id="content-${escapeHtml(page.slug)}" class="wiki-panel hidden border-t border-[color:var(--kc-line)] bg-white/40 px-4 pb-6 pt-2 md:px-6" hidden>
           <div class="wiki-content pl-11 md:pl-12">${panelHtml}</div>
           <div class="mt-6 pl-11 md:pl-12">
-            <a href="${escapeHtml(href)}" class="text-sm font-semibold text-kc-blue hover:text-kc-purple">${escapeHtml(authed ? t('search.openPage') : t('nav.login') || '登入')}</a>
+            <a href="${escapeHtml(href)}" class="text-sm font-semibold text-kc-blue hover:text-kc-purple">${escapeHtml(canExpand ? t('search.openPage') : t('nav.login') || '登入')}</a>
           </div>
         </div>
       </article>
@@ -181,14 +168,16 @@ export function createWikiSearch(initialIndex, options = {}) {
     container.querySelectorAll('.wiki-expand').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (btn.getAttribute('data-login-gate') === '1' || !authed) {
-          const item = btn.closest('.wiki-item');
-          const slug = item?.getAttribute('data-slug') || '';
-          const page = searchIndex.find((p) => p.slug === slug);
-          window.location.href = page ? loginHrefFor(page) : loginHrefWithNext(getBase() + 'search', getBase());
+        const item = btn.closest('.wiki-item');
+        const slug = item?.getAttribute('data-slug') || '';
+        const page = searchIndex.find((p) => p.slug === slug);
+        const href = page ? pageHref(page) : gatedNoteHref(getBase() + 'search', getBase());
+
+        // 未登入：展開＝去登入（與點標題同一規則）
+        if (!hasSessionHint() && !authed) {
+          window.location.href = href;
           return;
         }
-        const item = btn.closest('.wiki-item');
         const panel = item?.querySelector('.wiki-panel');
         const isOpen = panel && !panel.hidden;
         if (isOpen) closeItem(item);
@@ -198,8 +187,11 @@ export function createWikiSearch(initialIndex, options = {}) {
   };
 
   const renderResults = ({ query, resultsEl, emptyEl, metaEl }) => {
+    // 每次重繪前再讀一次 hint，避免登入／登出後連結過期
+    authed = hasSessionHint() || authed;
     const q = query.trim();
     const results = filterPages(q);
+    const canExpand = hasSessionHint() || authed;
 
     if (metaEl) {
       if (!q) {
@@ -212,7 +204,7 @@ export function createWikiSearch(initialIndex, options = {}) {
           ? t('search.metaFound', { n: results.length, q })
           : t('search.metaNone', { q });
       }
-      if (!authed && results.length > 0) {
+      if (!canExpand && results.length > 0) {
         metaEl.textContent = `${metaEl.textContent} · ${t('search.loginToRead') || '登入後可閱讀全文'}`;
       }
     }

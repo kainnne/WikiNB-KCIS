@@ -4,11 +4,13 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 const base = import.meta.env.BASE_URL;
 ---
 
-<BaseLayout title="筆記" description="即時讀取雲端／本機筆記（不依賴 Pages 靜態建置）">
+<BaseLayout title="筆記" description="登入後由 Auth 讀取筆記（不依賴靜態建置）">
   <div class="animate-fadeIn mx-auto max-w-3xl">
-    <div id="note-gate" class="kc-card hidden p-8 text-center text-kc-muted">請先登入後再開啟筆記。</div>
-    <div id="note-offline" class="kc-card hidden border border-amber-200 bg-amber-50/50 p-6 text-amber-950"></div>
-    <div id="note-loading" class="kc-card p-8 text-center text-kc-muted">載入筆記中…</div>
+    <div id="note-loading" class="kc-card p-8 text-center text-kc-muted">確認登入中…</div>
+    <div id="note-gate" class="kc-card hidden p-8 text-center text-kc-muted">
+      <p class="mb-3">此筆記僅限康橋登入用戶閱讀。</p>
+      <a id="note-login-link" href={`${base}login`} class="kc-btn-primary inline-flex">前往登入</a>
+    </div>
     <div id="note-error" class="kc-card hidden border border-red-200 bg-red-50/80 p-6 text-red-800"></div>
 
     <article id="note-article" class="hidden">
@@ -29,12 +31,13 @@ const base = import.meta.env.BASE_URL;
 
 <script>
   import {
-    checkAuthHealth,
-    fetchMe,
+    clearSessionHint,
+    hasSessionHint,
     isTeacherUser,
     readWikiFile,
+    requireLogin,
   } from '../scripts/auth-client.js';
-  import { markdownToHtml } from '../scripts/md-render.js';
+  import { loginHrefWithNext, markdownToHtml } from '../scripts/md-render.js';
 
   function pageBase() {
     return document.documentElement.dataset.base || '/WikiNB-KCIS/';
@@ -45,55 +48,76 @@ const base = import.meta.env.BASE_URL;
   const subjectId = params.get('subjectId') || '';
   const slug = params.get('slug') || '';
 
-  const gate = document.getElementById('note-gate');
-  const offline = document.getElementById('note-offline');
   const loading = document.getElementById('note-loading');
+  const gate = document.getElementById('note-gate');
   const errEl = document.getElementById('note-error');
   const article = document.getElementById('note-article');
+  const loginLink = document.getElementById('note-login-link');
+
+  const next = `${window.location.pathname}${window.location.search}`;
+  const loginUrl = loginHrefWithNext(next, pageBase());
+  if (loginLink) loginLink.setAttribute('href', loginUrl);
 
   function showError(msg) {
     loading?.classList.add('hidden');
+    gate?.classList.add('hidden');
     if (errEl) {
       errEl.textContent = msg || '無法開啟筆記';
       errEl.classList.remove('hidden');
     }
   }
 
+  function goLogin(reason) {
+    loading?.classList.add('hidden');
+    if (gate) {
+      const p = gate.querySelector('p');
+      if (p && reason) p.textContent = reason;
+      gate.classList.remove('hidden');
+    }
+    // 無 token：立刻走；有失效 token：清掉再走
+    if (!hasSessionHint()) {
+      window.location.replace(loginUrl);
+      return;
+    }
+    clearSessionHint();
+    window.location.replace(loginUrl);
+  }
+
   (async () => {
     if (!subjectId || !slug) {
-      showError('網址缺少 subjectId 或 slug。請從「我的筆記」或 WikiNB 搜尋點開。');
+      showError('網址缺少科目或檔名。請從 WikiNB 搜尋或首頁字卡重新點開。');
+      return;
+    }
+    if (!teacherId) {
+      showError('網址缺少老師資料夾 id。請從 WikiNB 搜尋重新點開。');
       return;
     }
 
-    const me = await fetchMe().catch(() => ({ authenticated: false }));
-    if (!me.authenticated) {
-      loading?.classList.add('hidden');
-      const next = `${window.location.pathname}${window.location.search}`;
-      window.location.replace(
-        `${pageBase()}login?next=${encodeURIComponent(next)}`,
+    // github.io 必須靠 local token（跨站 cookie 不可用）→ 無提示立刻登入，不等待
+    const onLocal =
+      location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+    if (!hasSessionHint() && !onLocal) {
+      goLogin('請先登入後再閱讀筆記。');
+      return;
+    }
+
+    // 唯一可信檢查：Auth /api/auth/me（fail-closed）
+    const session = await requireLogin({
+      timeoutMs: hasSessionHint() ? 3500 : 2000,
+    });
+    if (!session.authenticated) {
+      goLogin(
+        session.offline
+          ? '無法確認登入（Auth／Tunnel 離線或逾時）。請登入後再試。'
+          : '請先登入後再閱讀筆記。',
       );
-      gate?.classList.remove('hidden');
       return;
     }
 
-    const health = await checkAuthHealth();
-    if (!health.online) {
-      loading?.classList.add('hidden');
-      if (offline) {
-        offline.textContent = health.message || 'Auth 離線，無法讀取即時筆記。';
-        offline.classList.remove('hidden');
-      }
-      return;
-    }
-
-    const tid = teacherId || me.user?.teacherId || '';
-    if (!tid) {
-      showError('缺少 teacherId');
-      return;
-    }
+    if (loading) loading.textContent = '載入筆記中…';
 
     try {
-      const data = await readWikiFile({ subjectId, slug, teacherId: tid });
+      const data = await readWikiFile({ subjectId, slug, teacherId });
       const title = data.title || slug;
       document.title = `${title} · WikiNB KCIS`;
       const titleEl = document.getElementById('note-title');
@@ -102,15 +126,15 @@ const base = import.meta.env.BASE_URL;
       const metaEl = document.getElementById('note-meta');
       if (titleEl) titleEl.textContent = title;
       if (metaEl) {
-        metaEl.textContent = `${data.storage || 'live'} · ${tid}/${subjectId}/${slug}.md`;
+        metaEl.textContent = `${data.storage || 'live'} · ${teacherId}/${subjectId}/${slug}.md`;
       }
       if (tagsEl) {
-        tagsEl.innerHTML = `<span class="tag-keyword">${tid}</span><span class="tag-keyword">${subjectId}</span>`;
+        tagsEl.innerHTML = `<span class="tag-keyword">${teacherId}</span><span class="tag-keyword">${subjectId}</span>`;
       }
       if (bodyEl) bodyEl.innerHTML = markdownToHtml(data.content || '', { base: pageBase() });
 
       const edit = document.getElementById('note-edit');
-      if (edit && isTeacherUser(me.user) && me.user.teacherId === tid) {
+      if (edit && isTeacherUser(session.user) && session.user.teacherId === teacherId) {
         edit.href = `${pageBase()}editor?mode=edit&subjectId=${encodeURIComponent(subjectId)}&slug=${encodeURIComponent(slug)}`;
         edit.classList.remove('hidden');
       }
@@ -118,7 +142,11 @@ const base = import.meta.env.BASE_URL;
       loading?.classList.add('hidden');
       article?.classList.remove('hidden');
     } catch (err) {
-      showError(err.message || '讀取失敗（可能已刪除或尚未同步到本機鏡像）');
+      if (err.status === 401) {
+        goLogin('登入已失效，請重新登入。');
+        return;
+      }
+      showError(err.message || '讀取失敗（Auth 離線、檔案已刪，或尚未同步）');
     }
   })();
 </script>

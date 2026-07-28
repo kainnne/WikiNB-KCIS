@@ -40,17 +40,18 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
   <script>
     import { createWikiSearch } from '../scripts/wiki-search.js';
     import {
-      checkAuthHealth,
-      fetchMe,
       fetchWikiCatalog,
+      hasSessionHint,
       isTeacherUser,
       listAllWikiFiles,
+      requireLogin,
     } from '../scripts/auth-client.js';
     import { notePageHref } from '../scripts/md-render.js';
 
     const staticIndex = JSON.parse(document.getElementById('search-data')!.textContent!);
+    // 連結目標用 token 提示同步決定；真正權限在 /note
     const { mount, getQueryFromUrl, setIndex, setAuthed } = createWikiSearch(staticIndex, {
-      authed: false,
+      authed: hasSessionHint(),
     });
 
     const input = document.querySelector('input[name="q"]') as HTMLInputElement;
@@ -92,67 +93,68 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
       );
     }
 
-    async function initAuthAndCatalog() {
+    async function loadLiveCatalog(user) {
+      let live = [];
       try {
-        const me = await fetchMe().catch(() => ({ authenticated: false }));
-        if (!me.authenticated) {
-          setAuthed(false);
-          runSearch();
-          return;
-        }
-        setAuthed(true);
-        runSearch();
+        const cat = await fetchWikiCatalog();
+        live = cat.files || [];
+      } catch {
+        /* Auth 離線：維持靜態目錄即可 */
+      }
 
-        const health = await checkAuthHealth();
-        if (!health.online) return;
-
-        let live = [];
+      if (isTeacherUser(user)) {
         try {
-          const cat = await fetchWikiCatalog();
-          live = cat.files || [];
+          const mine = await listAllWikiFiles();
+          const teacherId = mine.teacherId || user.teacherId;
+          for (const f of mine.files || []) {
+            live.push({
+              slug: `teachers/${teacherId}/${f.subjectId}/${f.slug}`,
+              title: f.title || f.slug,
+              description: '',
+              teacher: user.nickname || teacherId,
+              teacherId,
+              subject: f.subjectName || f.subjectId,
+              subjectEn: f.subjectNameEn || f.subjectName || f.subjectId,
+              subjectId: f.subjectId,
+              noteSlug: f.slug,
+              keywords: [user.nickname, f.subjectName].filter(Boolean),
+              keywordsEn: [user.nickname, f.subjectNameEn || f.subjectName].filter(Boolean),
+              tags: [],
+              date: '',
+              html: '',
+              bodyText: f.title || f.slug,
+              live: true,
+            });
+          }
         } catch {
           /* ignore */
         }
+      }
 
-        if (isTeacherUser(me.user)) {
-          try {
-            const mine = await listAllWikiFiles();
-            const teacherId = mine.teacherId || me.user.teacherId;
-            for (const f of mine.files || []) {
-              live.push({
-                slug: `teachers/${teacherId}/${f.subjectId}/${f.slug}`,
-                title: f.title || f.slug,
-                description: '',
-                teacher: me.user.nickname || teacherId,
-                teacherId,
-                subject: f.subjectName || f.subjectId,
-                subjectEn: f.subjectNameEn || f.subjectName || f.subjectId,
-                subjectId: f.subjectId,
-                noteSlug: f.slug,
-                keywords: [me.user.nickname, f.subjectName].filter(Boolean),
-                keywordsEn: [me.user.nickname, f.subjectNameEn || f.subjectName].filter(Boolean),
-                tags: [],
-                date: '',
-                html: '',
-                bodyText: f.title || f.slug,
-                live: true,
-              });
-            }
-          } catch {
-            /* ignore */
-          }
-        }
+      if (!live.length) return;
+      setIndex(mergeLive(staticIndex, live));
+      runSearch();
+      if (metaEl && !String(input?.value || '').trim()) {
+        metaEl.textContent = `${metaEl.textContent || ''} · live`;
+      }
+    }
 
-        if (!live.length) return;
-        setIndex(mergeLive(staticIndex, live));
-        runSearch();
-        if (metaEl && !String(input?.value || '').trim()) {
-          metaEl.textContent = `${metaEl.textContent || ''} · live`;
-        }
-      } catch {
+    async function initAuthAndCatalog() {
+      // 無 token 提示：訪客模式，不打 Auth（避免卡在確認登入）
+      if (!hasSessionHint()) {
         setAuthed(false);
         runSearch();
+        return;
       }
+      const session = await requireLogin({ timeoutMs: 3500 });
+      if (!session.authenticated) {
+        setAuthed(false);
+        runSearch();
+        return;
+      }
+      setAuthed(true);
+      runSearch();
+      await loadLiveCatalog(session.user);
     }
 
     const q = getQueryFromUrl();
@@ -161,6 +163,11 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
     initAuthAndCatalog();
 
     document.addEventListener('wikinb:locale-change', () => runSearch());
+    document.addEventListener('wikinb:auth-change', (ev) => {
+      const loggedIn = Boolean(ev.detail?.loggedIn);
+      setAuthed(loggedIn);
+      runSearch();
+    });
   </script>
 
   <script id="search-data" type="application/json" set:html={JSON.stringify(searchIndex)} />

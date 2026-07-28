@@ -84,15 +84,22 @@ function linkifyWikiLinks(html, base) {
       .trim()
       .replace(/\.md$/i, '');
     const parts = full.split('/').filter(Boolean);
-    let href = `${b}wiki/${full}`;
+    let noteHref = `${b}wiki/${full}`;
     if (parts[0] === 'teachers' && parts.length >= 4) {
       const teacherId = parts[1];
       const subjectId = parts[2];
       const slug = parts.slice(3).join('/');
-      href = `${b}note?teacherId=${encodeURIComponent(teacherId)}&subjectId=${encodeURIComponent(subjectId)}&slug=${encodeURIComponent(slug)}`;
-    } else if (parts.length === 1) {
-      href = `${b}wiki/${full}`;
+      noteHref = `${b}note?teacherId=${encodeURIComponent(teacherId)}&subjectId=${encodeURIComponent(subjectId)}&slug=${encodeURIComponent(slug)}`;
+    } else if (parts.length >= 3) {
+      noteHref = notePageHref({
+        teacherId: parts[0],
+        subjectId: parts[1],
+        slug: parts.slice(2).join('/'),
+        base: b,
+      });
     }
+    // 筆記內連結也走同一閘門（有 token → note，否則 login）
+    const href = gatedNoteHref(noteHref, b);
     const text = (label || parts[parts.length - 1] || full).replace(/-/g, ' ');
     return `<a href="${href}" class="wiki-link">${text.trim()}</a>`;
   });
@@ -125,6 +132,30 @@ export function notePageHref({ teacherId, subjectId, slug, base }) {
   return `${root}note?${qs.toString()}`;
 }
 
+/** 從 wiki slug（teachers/tid/sid/note）組 note 網址 */
+export function noteHrefFromWikiSlug(wikiSlug, base) {
+  const parts = String(wikiSlug || '')
+    .replace(/^\/+/, '')
+    .replace(/^wiki\//, '')
+    .split('/')
+    .filter(Boolean);
+  let teacherId = '';
+  let subjectId = '';
+  let slug = '';
+  if (parts[0] === 'teachers' && parts.length >= 4) {
+    teacherId = parts[1];
+    subjectId = parts[2];
+    slug = parts.slice(3).join('/');
+  } else if (parts.length >= 3) {
+    teacherId = parts[0];
+    subjectId = parts[1];
+    slug = parts.slice(2).join('/');
+  } else {
+    slug = parts[parts.length - 1] || '';
+  }
+  return notePageHref({ teacherId, subjectId, slug, base });
+}
+
 /** 登入頁＋可選 next（同源相對路徑） */
 export function loginHrefWithNext(nextPath, base) {
   const b =
@@ -135,4 +166,27 @@ export function loginHrefWithNext(nextPath, base) {
   if (!nextPath) return `${root}login`;
   const qs = new URLSearchParams({ next: nextPath });
   return `${root}login?${qs.toString()}`;
+}
+
+/**
+ * 筆記連結唯一規則（同步、不打 API）：
+ * - 沒有 local token → login?next=note
+ * - 有 token → note（真正權限仍由 /note + requireLogin 把關）
+ */
+export function gatedNoteHref(notePath, base) {
+  let hasHint = false;
+  try {
+    hasHint = Boolean(
+      typeof localStorage !== 'undefined' && localStorage.getItem('wikinb_kcis_token'),
+    );
+  } catch {
+    hasHint = false;
+  }
+  if (hasHint) return notePath;
+  try {
+    const u = new URL(notePath, typeof location !== 'undefined' ? location.origin : 'http://127.0.0.1');
+    return loginHrefWithNext(`${u.pathname}${u.search}`, base);
+  } catch {
+    return loginHrefWithNext(notePath, base);
+  }
 }

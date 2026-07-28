@@ -1,9 +1,6 @@
 ---
 /**
- * 靜態 /wiki/... 路由改為「登入門檻殼」：
- * - 不在 HTML 內嵌筆記正文（避免未登入從原始碼讀全文）
- * - 未登入 → /login?next=...
- * - 已登入 → /note?...（Auth 即時讀取）
+ * /wiki/... 僅作舊連結相容：立刻轉到 /note 或 login，不內嵌正文、不長時間等待 Auth。
  */
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getAllWikiPages, getWikiPage } from '../../lib/wiki';
@@ -25,69 +22,33 @@ if (!page) {
 const parts = String(slug || '').split('/').filter(Boolean);
 const teacherId = page.teacherId || (parts[0] === 'teachers' ? parts[1] : '');
 const subjectId = page.subjectId || (parts[0] === 'teachers' ? parts[2] : '');
-const noteSlug = parts[0] === 'teachers' && parts.length >= 4 ? parts.slice(3).join('/') : parts[parts.length - 1];
+const noteSlug =
+  parts[0] === 'teachers' && parts.length >= 4 ? parts.slice(3).join('/') : parts[parts.length - 1];
+
+const notePath = `${base}note?teacherId=${encodeURIComponent(teacherId)}&subjectId=${encodeURIComponent(subjectId)}&slug=${encodeURIComponent(noteSlug)}`;
+const loginPath = `${base}login?next=${encodeURIComponent(notePath)}`;
 ---
 
 <BaseLayout title={page.title} description="筆記僅供康橋登入用戶閱讀">
   <div class="animate-fadeIn mx-auto max-w-lg">
-    <div id="wiki-gate" class="kc-card p-8 text-center">
+    <div class="kc-card p-8 text-center">
       <p class="font-display text-xl font-bold text-kc-blue-deep">{page.title}</p>
-      <p class="mt-2 text-sm text-kc-muted">
-        <span class="tag-keyword mr-1">{page.teacher}</span>
-        <span class="tag-keyword">{page.subject}</span>
-      </p>
-      <p id="wiki-gate-msg" class="mt-4 text-sm text-kc-muted">確認登入狀態…</p>
-      <a
-        id="wiki-login-link"
-        href={`${base}login`}
-        class="kc-btn-primary mt-6 inline-flex justify-center"
-      >
-        前往登入後閱讀
-      </a>
+      <p class="mt-2 text-sm text-kc-muted">正在開啟…</p>
+      <noscript>
+        <p class="mt-4 text-sm text-kc-muted">請先登入後閱讀此筆記。</p>
+        <a href={loginPath} class="kc-btn-primary mt-4 inline-flex">前往登入</a>
+      </noscript>
     </div>
   </div>
 </BaseLayout>
 
-<script
-  define:vars={{
-    teacherId,
-    subjectId,
-    noteSlug,
-    pageTitle: page.title,
-  }}
->
-  import { fetchMe } from '../../scripts/auth-client.js';
-  import { loginHrefWithNext, notePageHref } from '../../scripts/md-render.js';
-
-  function pageBase() {
-    return document.documentElement.dataset.base || '/WikiNB-KCIS/';
+<script define:vars={{ notePath, loginPath }}>
+  // 同步判斷：有 token 提示 → note；否則 → login。真正權限在 /note。
+  let hasHint = false;
+  try {
+    hasHint = Boolean(localStorage.getItem('wikinb_kcis_token'));
+  } catch {
+    hasHint = false;
   }
-
-  (async () => {
-    const msg = document.getElementById('wiki-gate-msg');
-    const loginLink = document.getElementById('wiki-login-link');
-    const next = `${window.location.pathname}${window.location.search}`;
-    const loginUrl = loginHrefWithNext(next, pageBase());
-    const noteUrl = notePageHref({
-      teacherId,
-      subjectId,
-      slug: noteSlug,
-      base: pageBase(),
-    });
-
-    if (loginLink) {
-      loginLink.setAttribute('href', loginUrl);
-      loginLink.textContent = '前往登入後閱讀';
-    }
-
-    const me = await fetchMe().catch(() => ({ authenticated: false }));
-    if (!me.authenticated) {
-      if (msg) msg.textContent = '此筆記僅限康橋登入用戶。正在前往登入…';
-      window.location.replace(loginUrl);
-      return;
-    }
-
-    if (msg) msg.textContent = `已登入，正在開啟「${pageTitle}」…`;
-    window.location.replace(noteUrl);
-  })();
+  window.location.replace(hasHint ? notePath : loginPath);
 </script>

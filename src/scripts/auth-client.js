@@ -66,10 +66,36 @@ function setStoredToken(token) {
   }
 }
 
+/** 同步提示：僅有 localStorage token。不可當成資安依據，只用來決定連到 login 還是 note。 */
+export function hasSessionHint() {
+  return Boolean(getStoredToken());
+}
+
+export function clearSessionHint() {
+  setStoredToken('');
+  if (typeof document !== 'undefined') {
+    document.dispatchEvent(
+      new CustomEvent('wikinb:auth-change', {
+        detail: { loggedIn: false, user: null, isTeacher: false },
+      }),
+    );
+  }
+}
+
 /** 登入回應若帶 token（Pages 跨站），存起來之後用 Bearer */
 function rememberSessionFrom(data) {
   if (data?.token) setStoredToken(data.token);
   return data;
+}
+
+function withTimeout(promise, ms, label = 'timeout') {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise).finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(label)), ms);
+    }),
+  ]);
 }
 
 async function authFetch(path, options = {}) {
@@ -87,6 +113,9 @@ async function authFetch(path, options = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 401) {
+      clearSessionHint();
+    }
     let message = data.error || data.message;
     if (!message) {
       if (res.status === 404) {
@@ -281,13 +310,47 @@ export async function checkAuthHealth() {
   };
 }
 
-export async function fetchMe() {
+export async function fetchMe(options = {}) {
+  const timeoutMs = Number(options.timeoutMs ?? 4000);
   try {
-    return await authFetch('/api/auth/me');
+    const data = await withTimeout(authFetch('/api/auth/me'), timeoutMs, 'auth-me-timeout');
+    if (!data?.authenticated) {
+      clearSessionHint();
+      return { ok: false, authenticated: false };
+    }
+    return data;
   } catch (err) {
-    if (err.status === 401) return { ok: false, authenticated: false };
-    throw err;
+    if (err.status === 401) {
+      clearSessionHint();
+      return { ok: false, authenticated: false };
+    }
+    // 逾時／斷線：fail-closed（視為未登入），並清掉可能失效的 token 提示
+    // 不在此清 token：避免 Auth 短暫抖動就踢人；由呼叫端決定
+    return {
+      ok: false,
+      authenticated: false,
+      offline: true,
+      error: String(err.message || err),
+    };
   }
+}
+
+/**
+ * 開筆記前唯一可信檢查：必須伺服器確認已登入。
+ * fail-closed：失敗／逾時＝未登入。
+ */
+export async function requireLogin(options = {}) {
+  const me = await fetchMe(options);
+  if (me?.authenticated && me.user) {
+    return { ok: true, authenticated: true, user: me.user, me };
+  }
+  return {
+    ok: false,
+    authenticated: false,
+    offline: Boolean(me?.offline),
+    error: me?.error || '',
+    me,
+  };
 }
 
 export async function lookupEmail(email) {
@@ -391,7 +454,7 @@ export async function logout() {
   } catch {
     /* ignore */
   }
-  setStoredToken('');
+  clearSessionHint();
 }
 
 export async function fetchCodexModels() {
