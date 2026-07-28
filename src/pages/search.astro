@@ -4,7 +4,12 @@ import SearchBar from '../components/SearchBar.astro';
 import { getAllWikiPages, getSearchIndex } from '../lib/wiki';
 
 const pages = getAllWikiPages();
-const searchIndex = getSearchIndex(pages);
+/** 公開頁不內嵌全文 HTML／內文，避免未登入即可從原始碼讀筆記 */
+const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest }) => ({
+  ...rest,
+  html: '',
+  bodyText: '',
+}));
 ---
 
 <BaseLayout title="WikiNB" description="搜尋與瀏覽康橋教學筆記">
@@ -14,7 +19,7 @@ const searchIndex = getSearchIndex(pages);
         <span class="brand-gradient-text" data-i18n="search.title">WikiNB</span>
       </h1>
       <p class="mt-2 text-kc-muted" data-i18n="search.subtitle">
-        搜尋與瀏覽同一頁 · 最新在上 · 點 ▸ 展開 · 點標題進入專頁
+        搜尋與瀏覽同一頁 · 最新在上 · 登入後可展開／開啟筆記
       </p>
     </div>
 
@@ -34,9 +39,19 @@ const searchIndex = getSearchIndex(pages);
 
   <script>
     import { createWikiSearch } from '../scripts/wiki-search.js';
+    import {
+      checkAuthHealth,
+      fetchMe,
+      fetchWikiCatalog,
+      isTeacherUser,
+      listAllWikiFiles,
+    } from '../scripts/auth-client.js';
+    import { notePageHref } from '../scripts/md-render.js';
 
-    const searchIndex = JSON.parse(document.getElementById('search-data')!.textContent!);
-    const { mount, getQueryFromUrl } = createWikiSearch(searchIndex);
+    const staticIndex = JSON.parse(document.getElementById('search-data')!.textContent!);
+    const { mount, getQueryFromUrl, setIndex, setAuthed } = createWikiSearch(staticIndex, {
+      authed: false,
+    });
 
     const input = document.querySelector('input[name="q"]') as HTMLInputElement;
     const form = input?.closest('form');
@@ -46,9 +61,104 @@ const searchIndex = getSearchIndex(pages);
 
     const { runSearch } = mount({ input, form, resultsEl, emptyEl, metaEl, syncUrl: true });
 
+    function pageBase() {
+      return document.documentElement.dataset.base || '/WikiNB-KCIS/';
+    }
+
+    function mergeLive(staticPages, livePages) {
+      const bySlug = new Map();
+      for (const p of staticPages || []) {
+        bySlug.set(p.slug, { ...p, live: false, html: '', bodyText: p.bodyText || '' });
+      }
+      for (const p of livePages || []) {
+        const noteSlug = p.noteSlug || String(p.slug || '').split('/').pop();
+        const href = notePageHref({
+          teacherId: p.teacherId,
+          subjectId: p.subjectId,
+          slug: noteSlug,
+          base: pageBase(),
+        });
+        bySlug.set(p.slug, {
+          ...p,
+          noteSlug,
+          live: true,
+          href,
+          html: '',
+          bodyText: p.bodyText || p.title || '',
+        });
+      }
+      return [...bySlug.values()].sort((a, b) =>
+        String(a.title || '').localeCompare(String(b.title || ''), 'zh-Hant'),
+      );
+    }
+
+    async function initAuthAndCatalog() {
+      try {
+        const me = await fetchMe().catch(() => ({ authenticated: false }));
+        if (!me.authenticated) {
+          setAuthed(false);
+          runSearch();
+          return;
+        }
+        setAuthed(true);
+        runSearch();
+
+        const health = await checkAuthHealth();
+        if (!health.online) return;
+
+        let live = [];
+        try {
+          const cat = await fetchWikiCatalog();
+          live = cat.files || [];
+        } catch {
+          /* ignore */
+        }
+
+        if (isTeacherUser(me.user)) {
+          try {
+            const mine = await listAllWikiFiles();
+            const teacherId = mine.teacherId || me.user.teacherId;
+            for (const f of mine.files || []) {
+              live.push({
+                slug: `teachers/${teacherId}/${f.subjectId}/${f.slug}`,
+                title: f.title || f.slug,
+                description: '',
+                teacher: me.user.nickname || teacherId,
+                teacherId,
+                subject: f.subjectName || f.subjectId,
+                subjectEn: f.subjectNameEn || f.subjectName || f.subjectId,
+                subjectId: f.subjectId,
+                noteSlug: f.slug,
+                keywords: [me.user.nickname, f.subjectName].filter(Boolean),
+                keywordsEn: [me.user.nickname, f.subjectNameEn || f.subjectName].filter(Boolean),
+                tags: [],
+                date: '',
+                html: '',
+                bodyText: f.title || f.slug,
+                live: true,
+              });
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        if (!live.length) return;
+        setIndex(mergeLive(staticIndex, live));
+        runSearch();
+        if (metaEl && !String(input?.value || '').trim()) {
+          metaEl.textContent = `${metaEl.textContent || ''} · live`;
+        }
+      } catch {
+        setAuthed(false);
+        runSearch();
+      }
+    }
+
     const q = getQueryFromUrl();
     if (q && input) input.value = q;
     runSearch();
+    initAuthAndCatalog();
 
     document.addEventListener('wikinb:locale-change', () => runSearch());
   </script>

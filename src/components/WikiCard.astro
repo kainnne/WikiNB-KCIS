@@ -1,6 +1,9 @@
 ---
 /**
- * 筆記卡片 — 日期 → keywords（老師固定／科目隨介面語言）→ 標題 → 摘要
+ * 筆記預覽字卡（首頁等）
+ * - 未登入：點擊 → 登入（next 指向即時筆記頁）
+ * - 已登入：Header／本卡腳本會把 href 改成即時筆記頁
+ * 卡片只顯示標題／關鍵字／短摘要，不含全文。
  */
 interface Props {
   slug: string;
@@ -10,14 +13,31 @@ interface Props {
   subject: string;
   subjectEn?: string;
   date: string;
+  teacherId?: string;
+  subjectId?: string;
 }
 
-const { slug, title, description, teacher, subject, subjectEn, date } = Astro.props;
+const { slug, title, description, teacher, subject, subjectEn, date, teacherId, subjectId } =
+  Astro.props;
 const base = import.meta.env.BASE_URL;
 const subjectLabelEn = subjectEn || subject;
+
+const parts = String(slug || '').split('/').filter(Boolean);
+const tid = teacherId || (parts[0] === 'teachers' ? parts[1] : '');
+const sid = subjectId || (parts[0] === 'teachers' ? parts[2] : '');
+const noteSlug =
+  parts[0] === 'teachers' && parts.length >= 4 ? parts.slice(3).join('/') : parts[parts.length - 1] || '';
+
+const notePath = `${base}note?teacherId=${encodeURIComponent(tid)}&subjectId=${encodeURIComponent(sid)}&slug=${encodeURIComponent(noteSlug)}`;
+const loginHref = `${base}login?next=${encodeURIComponent(notePath)}`;
 ---
 
-<a href={`${base}wiki/${slug}`} class="kc-card-hover flex h-full flex-col p-5 md:p-6">
+<a
+  href={loginHref}
+  class="wiki-preview-card kc-card-hover flex h-full flex-col p-5 md:p-6"
+  data-note-href={notePath}
+  data-login-href={loginHref}
+>
   <div class="mb-2 flex min-h-[1.25rem] items-center">
     <time class="text-xs font-semibold text-kc-purple">{date}</time>
   </div>
@@ -39,4 +59,29 @@ const subjectLabelEn = subjectEn || subject;
 
   <h3 class="line-clamp-1 font-display text-lg font-bold text-kc-blue-deep md:text-xl">{title}</h3>
   <p class="mt-2 line-clamp-2 flex-1 text-sm leading-relaxed text-kc-muted">{description}</p>
+  <p class="mt-3 text-xs font-semibold text-kc-blue">登入後閱讀 →</p>
 </a>
+
+<script>
+  import { fetchMe } from '../scripts/auth-client.js';
+
+  async function wirePreviewCards() {
+    const me = await fetchMe().catch(() => ({ authenticated: false }));
+    const loggedIn = Boolean(me.authenticated);
+    document.querySelectorAll('a.wiki-preview-card').forEach((el) => {
+      const a = el;
+      const note = a.getAttribute('data-note-href');
+      const login = a.getAttribute('data-login-href');
+      if (loggedIn && note) {
+        a.setAttribute('href', note);
+        const hint = a.querySelector('p.mt-3');
+        if (hint) hint.textContent = '開啟筆記 →';
+      } else if (login) {
+        a.setAttribute('href', login);
+      }
+    });
+  }
+
+  wirePreviewCards();
+  document.addEventListener('wikinb:auth-change', () => wirePreviewCards());
+</script>

@@ -141,7 +141,21 @@ const base = import.meta.env.BASE_URL;
       });
       clearSetupSession();
       showOk(result.message || 'Saved');
-      window.location.href = `${pageBase()}login/success`;
+      window.location.href = (() => {
+        try {
+          const next = sessionStorage.getItem('wikinb_login_next') || '';
+          if (next.startsWith('/') && !next.startsWith('//')) {
+            const base = pageBase().replace(/\/$/, '');
+            if (next === base || next.startsWith(`${base}/`) || next.startsWith('/WikiNB-KCIS')) {
+              sessionStorage.removeItem('wikinb_login_next');
+              return next;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+        return `${pageBase()}login/success`;
+      })();
     } catch (err) {
       showErr(err.message || 'Could not finish setup');
     } finally {

@@ -1,4 +1,10 @@
 ---
+/**
+ * 靜態 /wiki/... 路由改為「登入門檻殼」：
+ * - 不在 HTML 內嵌筆記正文（避免未登入從原始碼讀全文）
+ * - 未登入 → /login?next=...
+ * - 已登入 → /note?...（Auth 即時讀取）
+ */
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getAllWikiPages, getWikiPage } from '../../lib/wiki';
 
@@ -16,102 +22,72 @@ if (!page) {
   return Astro.redirect(`${base}404`);
 }
 
-const allPages = getAllWikiPages();
-const related = allPages
-  .filter(
-    (p) =>
-      p.slug !== page.slug &&
-      (p.teacherId === page.teacherId || p.subjectId === page.subjectId),
-  )
-  .slice(0, 3);
+const parts = String(slug || '').split('/').filter(Boolean);
+const teacherId = page.teacherId || (parts[0] === 'teachers' ? parts[1] : '');
+const subjectId = page.subjectId || (parts[0] === 'teachers' ? parts[2] : '');
+const noteSlug = parts[0] === 'teachers' && parts.length >= 4 ? parts.slice(3).join('/') : parts[parts.length - 1];
 ---
 
-<BaseLayout title={page.title} description={page.description}>
-  <article class="animate-fadeIn">
-    <header class="mb-8">
-      <div class="mb-3 flex flex-wrap items-center gap-2">
-        <time class="text-sm font-semibold text-kc-purple">{page.date}</time>
-        {page.updated && (
-          <span class="text-xs text-kc-muted">
-            <span data-i18n="wiki.updated" data-i18n-date={page.updated}>更新於 {page.updated}</span>
-          </span>
-        )}
-        <span class="tag-keyword">{page.teacher}</span>
-        <span
-          class="tag-keyword"
-          data-locale-text
-          data-zh={page.subject}
-          data-en={page.subjectEn || page.subject}
-        >
-          {page.subject}
-        </span>
-        {page.tags.map((tag) => (
-          <a href={`${base}search?q=${encodeURIComponent(tag)}`} class="tag-badge hover:opacity-80">
-            {tag}
-          </a>
-        ))}
-      </div>
-      <h1 class="font-display text-3xl font-bold text-kc-blue-deep md:text-4xl">{page.title}</h1>
-      {page.description && <p class="mt-3 text-lg text-kc-muted">{page.description}</p>}
-    </header>
-
-    <!-- 筆記正文維持原文，不隨介面語言翻譯 -->
-    <div class="kc-card kc-core-card wiki-content p-6 md:p-10" set:html={page.html} />
-
-    {related.length > 0 && (
-      <section class="mt-10">
-        <h2 class="mb-4 font-display text-xl font-bold text-kc-blue-deep">
-          <span class="mr-2 text-kc-purple/70" aria-hidden="true">✦</span>
-          <span data-i18n="wiki.related">相關筆記</span>
-        </h2>
-        <div class="grid gap-3 sm:grid-cols-3">
-          {related.map((r) => (
-            <a href={`${base}wiki/${r.slug}`} class="kc-card-hover block p-4">
-              <div class="mb-2 flex flex-wrap gap-1.5">
-                <span class="tag-keyword text-[10px]">{r.teacher}</span>
-                <span
-                  class="tag-keyword text-[10px]"
-                  data-locale-text
-                  data-zh={r.subject}
-                  data-en={r.subjectEn || r.subject}
-                >
-                  {r.subject}
-                </span>
-              </div>
-              <h3 class="font-display font-bold text-kc-blue-deep">{r.title}</h3>
-              <p class="mt-1 line-clamp-2 text-sm text-kc-muted">{r.description}</p>
-            </a>
-          ))}
-        </div>
-      </section>
-    )}
-
-    <div class="mt-8 flex flex-wrap gap-3">
-      <a href={`${base}search`} class="kc-btn-ghost" data-i18n="wiki.library">← 筆記庫</a>
+<BaseLayout title={page.title} description="筆記僅供康橋登入用戶閱讀">
+  <div class="animate-fadeIn mx-auto max-w-lg">
+    <div id="wiki-gate" class="kc-card p-8 text-center">
+      <p class="font-display text-xl font-bold text-kc-blue-deep">{page.title}</p>
+      <p class="mt-2 text-sm text-kc-muted">
+        <span class="tag-keyword mr-1">{page.teacher}</span>
+        <span class="tag-keyword">{page.subject}</span>
+      </p>
+      <p id="wiki-gate-msg" class="mt-4 text-sm text-kc-muted">確認登入狀態…</p>
       <a
-        href={`${base}search?q=${encodeURIComponent(page.teacher)}`}
-        class="kc-btn-ghost"
-        data-i18n="wiki.sameTeacher"
+        id="wiki-login-link"
+        href={`${base}login`}
+        class="kc-btn-primary mt-6 inline-flex justify-center"
       >
-        同老師
+        前往登入後閱讀
       </a>
     </div>
-  </article>
+  </div>
 </BaseLayout>
 
-<script>
-  import { applyI18n, t, getLocale } from '../../scripts/i18n.js';
+<script
+  define:vars={{
+    teacherId,
+    subjectId,
+    noteSlug,
+    pageTitle: page.title,
+  }}
+>
+  import { fetchMe } from '../../scripts/auth-client.js';
+  import { loginHrefWithNext, notePageHref } from '../../scripts/md-render.js';
 
-  function patchUpdated() {
-    document.querySelectorAll('[data-i18n="wiki.updated"]').forEach((el) => {
-      const date = el.getAttribute('data-i18n-date') || '';
-      el.textContent = t('wiki.updated', { date }, getLocale());
-    });
+  function pageBase() {
+    return document.documentElement.dataset.base || '/WikiNB-KCIS/';
   }
 
-  patchUpdated();
-  document.addEventListener('wikinb:locale-change', () => {
-    applyI18n();
-    patchUpdated();
-  });
+  (async () => {
+    const msg = document.getElementById('wiki-gate-msg');
+    const loginLink = document.getElementById('wiki-login-link');
+    const next = `${window.location.pathname}${window.location.search}`;
+    const loginUrl = loginHrefWithNext(next, pageBase());
+    const noteUrl = notePageHref({
+      teacherId,
+      subjectId,
+      slug: noteSlug,
+      base: pageBase(),
+    });
+
+    if (loginLink) {
+      loginLink.setAttribute('href', loginUrl);
+      loginLink.textContent = '前往登入後閱讀';
+    }
+
+    const me = await fetchMe().catch(() => ({ authenticated: false }));
+    if (!me.authenticated) {
+      if (msg) msg.textContent = '此筆記僅限康橋登入用戶。正在前往登入…';
+      window.location.replace(loginUrl);
+      return;
+    }
+
+    if (msg) msg.textContent = `已登入，正在開啟「${pageTitle}」…`;
+    window.location.replace(noteUrl);
+  })();
 </script>

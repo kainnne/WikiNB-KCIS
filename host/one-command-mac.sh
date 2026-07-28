@@ -81,7 +81,8 @@ echo $TUNNEL_PID >"$LOG_DIR/tunnel.pid"
 
 TUNNEL_URL=""
 for i in {1..60}; do
-  TUNNEL_URL="$(grep -Eo 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$TUNNEL_LOG" | head -n 1 || true)"
+  # -a：tunnel.log 若被當成 binary，grep 會吐出 “Binary file … matches” 寫壞 productionUrl
+  TUNNEL_URL="$(grep -aEo 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$TUNNEL_LOG" | head -n 1 || true)"
   if [[ -n "$TUNNEL_URL" ]]; then
     break
   fi

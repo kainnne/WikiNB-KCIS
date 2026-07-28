@@ -50,7 +50,6 @@ const base = import.meta.env.BASE_URL;
 </BaseLayout>
 
 <script>
-  import { marked } from 'marked';
   import { t, getLocale } from '../scripts/i18n.js';
   import {
     checkAuthHealth,
@@ -59,8 +58,7 @@ const base = import.meta.env.BASE_URL;
     fetchCodexModels,
     stopCodex,
   } from '../scripts/auth-client.js';
-
-  marked.setOptions({ breaks: true, gfm: true });
+  import { markdownToHtml } from '../scripts/md-render.js';
 
   const gate = document.getElementById('codex-gate');
   const offline = document.getElementById('codex-offline');
@@ -84,13 +82,20 @@ const base = import.meta.env.BASE_URL;
     'gemini.example4',
   ];
 
+  function pageBase() {
+    return document.documentElement.dataset.base || '/WikiNB-KCIS/';
+  }
+
   function setBubbleText(bubble, text, role = 'assistant') {
     if (!bubble) return;
     if (role === 'assistant') {
-      bubble.classList.add('codex-md');
-      bubble.innerHTML = marked.parse(String(text ?? ''), { async: false });
+      bubble.classList.add('codex-md', 'wiki-content');
+      bubble.innerHTML = markdownToHtml(String(text ?? ''), {
+        base: pageBase(),
+        linkifyWiki: true,
+      });
     } else {
-      bubble.classList.remove('codex-md');
+      bubble.classList.remove('codex-md', 'wiki-content');
       bubble.textContent = text;
     }
   }

@@ -14,7 +14,9 @@
     "host:mac": "bash host/start-mac.sh",
     "host:tunnel": "bash host/tunnel-mac.sh",
     "host:one": "bash host/one-command-mac.sh",
-    "host:stop": "bash host/stop-mac.sh"
+    "host:stop": "bash host/stop-mac.sh",
+    "host:doctor": "bash host/doctor-mac.sh",
+    "host:local": "bash host/local-login-mac.sh"
   },
   "dependencies": {
     "@astrojs/tailwind": "^6.0.2",

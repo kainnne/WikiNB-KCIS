@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# 把本機 Auth :8788 暴露成 HTTPS，讓 github.io 能登入並打到這台主機的 Codex
+# 把本機 Auth :8790 暴露成 HTTPS，讓 github.io 能登入
 set -euo pipefail
 
-PORT="${PORT:-8788}"
+# KCIS Auth 固定 8790（個人 WikiNB 才是 8787／8788，勿混用）
+PORT="${PORT:-8790}"
 
 if ! command -v cloudflared >/dev/null 2>&1; then
   echo "尚未安裝 cloudflared。"
@@ -12,7 +13,7 @@ if ! command -v cloudflared >/dev/null 2>&1; then
 fi
 
 echo "=== Cloudflare Quick Tunnel → http://127.0.0.1:${PORT} ==="
-echo "請先在另一個終端機執行：./host/start-mac.sh 或 npm run auth"
+echo "請先在另一個終端機執行：npm run auth（埠 8790）"
 echo ""
 echo "Tunnel 啟動後會顯示 https://xxxx.trycloudflare.com"
 echo "接著："

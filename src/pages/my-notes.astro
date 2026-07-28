@@ -34,7 +34,10 @@ const base = import.meta.env.BASE_URL;
     </div>
 
     <div id="mynotes-panel" class="hidden space-y-4">
-      <p id="mynotes-status" class="text-sm text-kc-muted"></p>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p id="mynotes-status" class="text-sm text-kc-muted"></p>
+        <button id="mynotes-sync" type="button" class="kc-btn-ghost py-1.5 text-xs">同步雲端→本機</button>
+      </div>
       <div id="mynotes-list" class="space-y-3"></div>
       <p id="mynotes-empty" class="kc-card hidden p-8 text-center text-kc-muted" data-i18n="myNotes.empty">
         No notes yet in your teacher folder. Add one from + Add note.
@@ -139,6 +142,7 @@ const base = import.meta.env.BASE_URL;
     fetchMe,
     isTeacherUser,
     listAllWikiFiles,
+    syncWiki,
   } from '../scripts/auth-client.js';
   import { t } from '../scripts/i18n.js';
 
@@ -154,6 +158,7 @@ const base = import.meta.env.BASE_URL;
   const listEl = document.getElementById('mynotes-list');
   const emptyEl = document.getElementById('mynotes-empty');
   const statusEl = document.getElementById('mynotes-status');
+  const syncBtn = document.getElementById('mynotes-sync');
 
   let elapsedTimer = null;
 
@@ -288,15 +293,23 @@ const base = import.meta.env.BASE_URL;
       emptyEl?.classList.add('hidden');
       listEl.innerHTML = all
         .map((f) => {
-          const viewHref = `${pageBase()}wiki/teachers/${encodeURIComponent(f.teacherId)}/${encodeURIComponent(f.subjectId)}/${encodeURIComponent(f.slug)}`;
           const editHref = `${pageBase()}editor?mode=edit&subjectId=${encodeURIComponent(f.subjectId)}&slug=${encodeURIComponent(f.slug)}`;
+          const viewHref = `${pageBase()}note?teacherId=${encodeURIComponent(f.teacherId || currentTeacherId || '')}&subjectId=${encodeURIComponent(f.subjectId)}&slug=${encodeURIComponent(f.slug)}`;
+          const storageLabel =
+            f.storage === 'google-drive'
+              ? 'Drive'
+              : f.storage === 'local-only'
+                ? '本機'
+                : f.storage === 'merged'
+                  ? '已同步'
+                  : f.storage || '';
           return `<div class="kc-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between" data-subject="${escapeHtml(f.subjectId)}" data-slug="${escapeHtml(f.slug)}" data-title="${escapeHtml(f.title || f.slug)}">
           <div class="min-w-0 text-left">
             <p class="font-display text-lg font-bold text-kc-blue-deep">${escapeHtml(f.title || f.slug)}</p>
-            <p class="mt-1 text-xs text-kc-muted">${escapeHtml(f.subjectName)} · ${escapeHtml(f.slug)}.md</p>
+            <p class="mt-1 text-xs text-kc-muted">${escapeHtml(f.subjectName)} · ${escapeHtml(f.slug)}.md${storageLabel ? ` · ${escapeHtml(storageLabel)}` : ''}</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <a class="kc-btn-ghost py-1.5 text-xs" href="${viewHref}">View</a>
+            <a class="kc-btn-secondary py-1.5 text-xs" href="${viewHref}">View</a>
             <a class="kc-btn-secondary py-1.5 text-xs" href="${editHref}">Edit</a>
             <button type="button" class="kc-btn-ghost py-1.5 text-xs text-red-600 my-notes-del">Delete</button>
           </div>
@@ -344,6 +357,21 @@ const base = import.meta.env.BASE_URL;
     const teacherId = me.user.teacherId;
     const folderHint = document.getElementById('mynotes-folder');
     if (folderHint) folderHint.textContent = `Folder: wiki/teachers/${teacherId}/`;
+
+    syncBtn?.addEventListener('click', async () => {
+      try {
+        syncBtn.setAttribute('disabled', 'true');
+        setStatus('同步中（Drive → 本機）…');
+        const result = await syncWiki();
+        setStatus(result.message || '同步完成');
+        await loadNotes(teacherId);
+      } catch (err) {
+        setStatus(err.message || '同步失敗', true);
+      } finally {
+        syncBtn.removeAttribute('disabled');
+      }
+    });
+
     await loadNotes(teacherId);
   })();
 </script>

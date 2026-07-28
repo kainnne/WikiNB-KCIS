@@ -536,12 +536,21 @@ const base = import.meta.env.BASE_URL;
     const raw = fileSelect.value;
     if (!raw.includes('::')) return;
     const [subjectId, slug] = raw.split('::');
-    const data = await readWikiFile({ subjectId, slug });
-    defaultSubjectId = subjectId;
-    if (subjectSelect) subjectSelect.value = subjectId;
-    applyDocToForm(data.content || '', slug);
-    showMainEditor();
-    setStatus(`Loaded: ${slug}`);
+    try {
+      setStatus(`Loading ${slug}.md…`);
+      const data = await readWikiFile({ subjectId, slug });
+      defaultSubjectId = subjectId;
+      if (subjectSelect) subjectSelect.value = subjectId;
+      applyDocToForm(data.content || '', slug);
+      showMainEditor();
+      setStatus(`Loaded: ${slug} (${data.storage || 'ok'})`);
+    } catch (err) {
+      setStatus(err.message || `無法開啟 ${slug}.md（可能已刪除或未同步）`, true);
+      // 從下拉移除幽靈選項
+      const opt = fileSelect.querySelector(`option[value="${CSS.escape(`${subjectId}::${slug}`)}"]`);
+      opt?.remove();
+      fileSelect.value = '';
+    }
   });
 
   contentArea?.addEventListener('input', refreshPreview);

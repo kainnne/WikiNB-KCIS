@@ -15,13 +15,14 @@ if [[ ! -f auth/.env ]]; then
 fi
 
 # 主機模式：給 Pages 跨站 cookie 用（Tunnel HTTPS 時）
-export HOST="${HOST:-127.0.0.1}"
+export HOST="${HOST:-0.0.0.0}"
+export PORT="${PORT:-8790}"
 export COOKIE_SAMESITE="${COOKIE_SAMESITE:-none}"
-export FRONTEND_ORIGINS="${FRONTEND_ORIGINS:-https://zx50416.github.io}"
+export FRONTEND_ORIGINS="${FRONTEND_ORIGINS:-https://zx50416.github.io,http://127.0.0.1:4322,http://localhost:4322}"
 
-echo "1) 啟動 Auth API（連本機 Codex CLI）…"
-echo "   另開一個終端機執行 Tunnel（若要用線上站登入）："
-echo "   ./host/tunnel-mac.sh"
+echo "1) 啟動 Auth API（埠 ${PORT}）…"
+echo "   本機測試登入：http://127.0.0.1:4322/WikiNB-KCIS/login（另需 npm run dev）"
+echo "   線上站 Tunnel：./host/tunnel-mac.sh（務必對準 ${PORT}，不是 8788）"
 echo ""
 
 npm run auth

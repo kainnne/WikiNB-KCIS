@@ -119,21 +119,25 @@ export function getAuthMixedContentBlock() {
 }
 
 export const REFRESH_AFTER_HOST_HINT =
-  'Auth／Tunnel 啟動後，請強制重新整理本頁（Mac：Cmd+Shift+R）。若 Tunnel 網址變了，還要更新 productionUrl 並重新部署 Pages。';
+  '修好後請強制重新整理（Mac：Cmd+Shift+R）。本機測試用 4322 網址；github.io 還要 Tunnel 網址寫進 productionUrl 並 push。';
 
 export const CODE_SENT_HINT =
   '驗證碼已寄至你的 Email 信箱，請查收（若沒看到請看垃圾郵件）。10 分鐘內有效。';
 
 export const HOST_PROJECT_DIR = '/Users/kaine/Desktop/Projects/WikiNB_for_KCIS';
+export const LOCAL_LOGIN_URL = 'http://127.0.0.1:4322/WikiNB-KCIS/login';
 
 function hostCommands() {
   const q = `"${HOST_PROJECT_DIR}"`;
   return {
-    localLogin: 'http://127.0.0.1:4322/WikiNB-KCIS/login',
+    localLogin: LOCAL_LOGIN_URL,
+    doctor: `cd ${q} && ./host/doctor-mac.sh`,
+    localAll: `cd ${q} && ./host/local-login-mac.sh`,
     auth: `cd ${q} && npm run auth`,
     tunnel: `cloudflared tunnel --url http://127.0.0.1:8790`,
     oneCommand: `cd ${q} && ./host/one-command-mac.sh`,
     dev: `cd ${q} && npm run dev`,
+    health: 'curl -s http://127.0.0.1:8790/api/health',
   };
 }
 
@@ -147,21 +151,30 @@ export async function diagnoseAuthConnection() {
     (location.hostname === '127.0.0.1' || location.hostname === 'localhost');
   const cmds = hostCommands();
   const production = String(readAuthConfig().productionUrl || '').trim();
+  const looksLikeTunnel =
+    /^https:\/\/[a-z0-9.-]+\.trycloudflare\.com\/?$/i.test(production) ||
+    /^https:\/\//i.test(production);
 
+  const portHint =
+    '埠號對照：KCIS 網站 4322、Auth 8790。個人 WikiNB 是另一專案（常見 4321／8787），不要混用。';
+
+  // Pages + 誤指到本機 HTTP → 瀏覽器會擋（mixed content）
   const blocked = getAuthMixedContentBlock();
   if (blocked) {
     return {
       ...blocked,
-      title: '線上站尚無雲端後端',
-      hint: 'GitHub Pages 無法直連本機。請啟動 Auth + Cloudflare Tunnel，或暫時用本機登入頁。',
+      title: '線上站無法直連本機 Auth',
+      hint: `${portHint} 請先用本機登入頁測試，或開 Auth + Tunnel。`,
+      localLoginUrl: cmds.localLogin,
       commands: [
-        { id: 'auth', label: '終端機 1：啟動 Auth（埠 8790）', cmd: cmds.auth },
-        { id: 'tunnel', label: '終端機 2：啟動 Tunnel（讓 github.io 連得到）', cmd: cmds.tunnel },
         {
-          id: 'one',
-          label: '（可選）一鍵：Auth + Tunnel',
-          cmd: cmds.oneCommand,
+          id: 'local',
+          label: '建議先本機測試（複製後用瀏覽器開）',
+          cmd: cmds.localLogin,
         },
+        { id: 'localAll', label: '一鍵啟動本機 Auth + 網站', cmd: cmds.localAll },
+        { id: 'auth', label: '終端機 1：只開 Auth（8790）', cmd: cmds.auth },
+        { id: 'tunnel', label: '終端機 2：Tunnel（僅 github.io 需要）', cmd: cmds.tunnel },
       ],
     };
   }
@@ -175,35 +188,40 @@ export async function diagnoseAuthConnection() {
       message: '',
       hint: '',
       commands: [],
+      localLoginUrl: cmds.localLogin,
       ...health,
     };
   } catch {
     if (onPages) {
       return {
         online: false,
-        reason: production ? 'cloud-offline' : 'need-local-dev',
-        title: production ? '雲端 Auth 目前離線' : '請啟動 Auth + Tunnel',
-        message: production
-          ? `productionUrl 連不上（目前設定：${production}）。github.io 只顯示畫面，登入要靠本機 Auth + Cloudflare Tunnel。請依下方開兩個終端機；Mac 需保持清醒。`
-          : 'GitHub Pages 只有畫面。請先啟動本機 Auth，再用 Cloudflare Tunnel 公開 :8790，並把新網址寫入 productionUrl 後重新部署。',
-        hint: REFRESH_AFTER_HOST_HINT,
+        reason: looksLikeTunnel ? 'cloud-offline' : 'need-local-dev',
+        title: looksLikeTunnel ? '雲端 Auth／Tunnel 目前離線' : '請啟動 Auth + Tunnel',
+        message: looksLikeTunnel
+          ? `github.io 連不到 productionUrl（${production}）。常見原因：Tunnel 沒開、網址過期、或 sites.json 還沒 push。本機請改開：${cmds.localLogin}`
+          : `GitHub Pages 只有靜態畫面。要登入請開本機 ${cmds.localLogin}，或 Auth + Tunnel 後更新 productionUrl 並 push。`,
+        hint: `${REFRESH_AFTER_HOST_HINT} ${portHint}`,
+        localLoginUrl: cmds.localLogin,
         commands: [
-          { id: 'auth', label: '終端機 1：啟動 Auth', cmd: cmds.auth },
+          {
+            id: 'local',
+            label: '本機登入網址（最快可測）',
+            cmd: cmds.localLogin,
+          },
+          { id: 'localAll', label: '一鍵啟動本機 Auth + 網站', cmd: cmds.localAll },
+          { id: 'doctor', label: '除錯：一鍵診斷', cmd: cmds.doctor },
+          { id: 'auth', label: '終端機 1：Auth（8790）', cmd: cmds.auth },
           {
             id: 'tunnel',
-            label: '終端機 2：啟動 Tunnel（固定指令）',
+            label: '終端機 2：Tunnel（必須對準 8790，不是 8788）',
             cmd: cmds.tunnel,
           },
           {
             id: 'one',
-            label: '（可選）一鍵腳本：Auth + Tunnel + 寫入 productionUrl',
+            label: '（線上）一鍵 Auth + Tunnel + 寫入 productionUrl',
             cmd: cmds.oneCommand,
           },
-          {
-            id: 'check',
-            label: '除錯：確認本機 Auth 是否健康',
-            cmd: 'curl -s http://127.0.0.1:8790/api/health',
-          },
+          { id: 'check', label: '確認 Auth 健康', cmd: cmds.health },
         ],
         authBase: getAuthBase(),
         productionUrl: production,
@@ -214,12 +232,21 @@ export async function diagnoseAuthConnection() {
       return {
         online: false,
         reason: 'local-auth-offline',
-        title: '本機 Auth 未連線',
-        message: '請先在終端機執行 npm run auth（埠 8790），再重新整理本頁。本機開發不需要 Tunnel。',
-        hint: '建議開兩個終端機：一個 Auth、一個 npm run dev。',
+        title: '本機 Auth 未連線（8790）',
+        message: `請確認登入網址是 ${cmds.localLogin}（光開 http://127.0.0.1:4322/ 會找不到頁面）。然後啟動 Auth；本機測試不需要 Tunnel。`,
+        hint: `${portHint} 建議：一個終端機 Auth、一個 npm run dev；或直接跑一鍵腳本。`,
+        localLoginUrl: cmds.localLogin,
         commands: [
-          { id: 'auth', label: '終端機 1：啟動 Auth', cmd: cmds.auth },
-          { id: 'dev', label: '終端機 2：啟動網站（若還沒開）', cmd: cmds.dev },
+          {
+            id: 'local',
+            label: '正確登入網址',
+            cmd: cmds.localLogin,
+          },
+          { id: 'localAll', label: '一鍵啟動本機 Auth + 網站', cmd: cmds.localAll },
+          { id: 'doctor', label: '除錯：一鍵診斷', cmd: cmds.doctor },
+          { id: 'auth', label: '終端機 1：Auth', cmd: cmds.auth },
+          { id: 'dev', label: '終端機 2：網站（4322）', cmd: cmds.dev },
+          { id: 'check', label: '確認 Auth 健康', cmd: cmds.health },
         ],
         authBase: getAuthBase(),
       };
@@ -229,9 +256,14 @@ export async function diagnoseAuthConnection() {
       online: false,
       reason: 'offline',
       title: 'Auth 未連線',
-      message: '請啟動本機 Auth：npm run auth',
-      hint: '',
-      commands: [{ id: 'auth', label: '啟動 Auth', cmd: cmds.auth }],
+      message: `請開本機登入頁 ${cmds.localLogin}，並執行 npm run auth。`,
+      hint: portHint,
+      localLoginUrl: cmds.localLogin,
+      commands: [
+        { id: 'local', label: '本機登入網址', cmd: cmds.localLogin },
+        { id: 'localAll', label: '一鍵啟動', cmd: cmds.localAll },
+        { id: 'auth', label: '啟動 Auth', cmd: cmds.auth },
+      ],
     };
   }
 }
@@ -471,6 +503,11 @@ export async function listWikiFiles({ subjectId, teacherId } = {}) {
 export async function listAllWikiFiles({ teacherId } = {}) {
   const qs = teacherId ? `?teacherId=${encodeURIComponent(teacherId)}` : '';
   return authFetch(`/api/wiki/list-all${qs}`);
+}
+
+/** 本機 wiki/ 即時目錄（登入後 WikiNB 搜尋用，不需等 Pages 建置） */
+export async function fetchWikiCatalog() {
+  return authFetch('/api/wiki/catalog');
 }
 
 export async function readWikiFile({ subjectId, slug, teacherId }) {

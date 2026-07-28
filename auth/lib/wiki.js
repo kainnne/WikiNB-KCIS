@@ -404,8 +404,12 @@ export async function listTeacherFiles(user, { subjectId, teacherId: reqTeacherI
         'Drive list timeout',
       );
       for (const f of files) {
-        if (bySlug.has(f.slug)) continue;
+        if (bySlug.has(f.slug)) {
+          bySlug.set(f.slug, { ...bySlug.get(f.slug), storage: 'merged' });
+          continue;
+        }
         let title = f.slug;
+        let readable = true;
         try {
           const full = await withTimeout(
             readTeacherMarkdown(teacherId, subjectId, f.slug),
@@ -414,13 +418,14 @@ export async function listTeacherFiles(user, { subjectId, teacherId: reqTeacherI
           );
           title = extractTitle(full.content, f.slug);
         } catch {
-          /* ignore */
+          readable = false;
         }
+        if (!readable) continue;
         bySlug.set(f.slug, {
           filename: f.filename,
           slug: f.slug,
           title,
-          path: `drive:${f.path}`,
+          path: f.path || `drive:teachers/${teacherId}/${subjectId}/${f.filename}`,
           storage: 'google-drive',
         });
       }
@@ -486,10 +491,15 @@ export async function listAllTeacherFiles(user, { teacherId: reqTeacherId } = {}
             try {
               const files = await listTeacherMarkdownFiles(teacherId, subjectId, { create: false });
               const cat = catalogById.get(subjectId);
+              const driveSlugs = new Set(files.map((f) => f.slug));
               for (const f of files) {
                 const key = `${subjectId}::${f.slug}`;
-                if (byKey.has(key)) continue;
+                if (byKey.has(key)) {
+                  byKey.set(key, { ...byKey.get(key), storage: 'merged' });
+                  continue;
+                }
                 let title = f.slug;
+                let readable = true;
                 try {
                   const full = await withTimeout(
                     readTeacherMarkdown(teacherId, subjectId, f.slug),
@@ -498,19 +508,28 @@ export async function listAllTeacherFiles(user, { teacherId: reqTeacherId } = {}
                   );
                   title = extractTitle(full.content, f.slug);
                 } catch {
-                  /* keep slug */
+                  readable = false;
                 }
+                // Drive 列得出但讀不到 → 視為幽靈，不進列表
+                if (!readable) continue;
                 byKey.set(key, {
                   filename: f.filename,
                   slug: f.slug,
                   title,
-                  path: `drive:${f.path}`,
+                  path: f.path || `teachers/${teacherId}/${subjectId}/${f.filename}`,
                   storage: 'google-drive',
                   teacherId,
                   subjectId,
                   subjectName: cat?.name || subjectId,
                   subjectNameEn: cat?.nameEn || cat?.name || subjectId,
                 });
+              }
+              // 本機有、Drive 無：標成 local-only（仍顯示，方便未上傳草稿）
+              for (const [key, row] of byKey) {
+                if (row.subjectId !== subjectId) continue;
+                if (!driveSlugs.has(row.slug) && row.storage === 'local') {
+                  byKey.set(key, { ...row, storage: 'local-only' });
+                }
               }
             } catch {
               /* ignore one subject */
@@ -535,9 +554,17 @@ export async function listAllTeacherFiles(user, { teacherId: reqTeacherId } = {}
 export async function readTeacherFile(user, { subjectId, slug, teacherId: reqTeacherId }) {
   const teacherId = resolveWriteTeacherId(user, reqTeacherId);
   if (!teacherId) throw new Error('無權限讀取筆記');
+  return readWikiNoteContent({ teacherId, subjectId, slug, allowDrive: true });
+}
+
+/**
+ * 任一登入者可讀：優先本機 wiki/；若本機沒有且呼叫端允許，再試 Drive。
+ */
+export async function readWikiNoteContent({ teacherId, subjectId, slug, allowDrive = true }) {
   const noteSlug = normalizeSlug(slug);
   if (!noteSlug) throw new Error('檔名無效');
   if (!subjectId) throw new Error('請指定 subjectId');
+  if (!teacherId) throw new Error('請指定 teacherId');
 
   const localPath = path.join(subjectDir(teacherId, subjectId), `${noteSlug}.md`);
   if (fs.existsSync(localPath)) {
@@ -551,11 +578,20 @@ export async function readTeacherFile(user, { subjectId, slug, teacherId: reqTea
       content,
       title: extractTitle(content, noteSlug),
       storage: 'local',
+      wikiSlug: `teachers/${teacherId}/${subjectId}/${noteSlug}`,
     };
   }
 
-  if (isDriveConfigured()) {
+  if (allowDrive && isDriveConfigured()) {
     const file = await readTeacherMarkdown(teacherId, subjectId, noteSlug);
+    // 讀到即寫回本機鏡像，讓 WikiNB 目錄／下次建置看得到
+    try {
+      fs.mkdirSync(subjectDir(teacherId, subjectId), { recursive: true });
+      fs.writeFileSync(localPath, file.content, 'utf8');
+      upsertWikiIndexLink(teacherId, subjectId, noteSlug, extractTitle(file.content, noteSlug));
+    } catch (err) {
+      console.warn('mirror drive→local failed:', err.message || err);
+    }
     return {
       ok: true,
       teacherId,
@@ -565,10 +601,113 @@ export async function readTeacherFile(user, { subjectId, slug, teacherId: reqTea
       content: file.content,
       title: extractTitle(file.content, noteSlug),
       storage: 'google-drive',
+      wikiSlug: `teachers/${teacherId}/${subjectId}/${noteSlug}`,
     };
   }
 
   throw new Error(`找不到筆記：${noteSlug}.md`);
+}
+
+/** 掃本機 wiki/teachers — 即時目錄（不需等 Pages 建置） */
+export function buildLocalWikiCatalog() {
+  const teachersRoot = path.join(wikiRoot(), 'teachers');
+  const files = [];
+  if (!fs.existsSync(teachersRoot)) {
+    return { ok: true, files, storage: 'local', count: 0 };
+  }
+
+  for (const tEnt of fs.readdirSync(teachersRoot, { withFileTypes: true })) {
+    if (!tEnt.isDirectory() || tEnt.name.startsWith('_')) continue;
+    const teacherId = tEnt.name;
+    const teacherMeta = getTeacherMeta(teacherId);
+    const teacherName = teacherMeta.displayName || teacherMeta.name || teacherId;
+    const tDir = path.join(teachersRoot, teacherId);
+    for (const sEnt of fs.readdirSync(tDir, { withFileTypes: true })) {
+      if (!sEnt.isDirectory() || sEnt.name.startsWith('_')) continue;
+      const subjectId = sEnt.name;
+      const cat = findSubjectInCatalog(subjectId);
+      const subjectMeta = readJson(path.join(tDir, subjectId, '_meta.json')) || {};
+      const subjectName = subjectMeta.name || cat?.name || subjectId;
+      const subjectNameEn = subjectMeta.nameEn || cat?.nameEn || subjectName;
+      for (const f of listLocalTeacherFiles(teacherId, subjectId)) {
+        let status = 'published';
+        try {
+          const raw = fs.readFileSync(path.join(subjectDir(teacherId, subjectId), f.filename), 'utf8');
+          const statusMatch = raw.match(/^---[\s\S]*?^status:\s*["']?(\w+)/m);
+          status = (statusMatch?.[1] || 'published').toLowerCase();
+        } catch {
+          /* ignore */
+        }
+        if (status === 'draft') continue;
+        files.push({
+          slug: `teachers/${teacherId}/${subjectId}/${f.slug}`,
+          title: f.title || f.slug,
+          description: '',
+          teacher: teacherName,
+          teacherId,
+          subject: subjectName,
+          subjectEn: subjectNameEn,
+          subjectId,
+          noteSlug: f.slug,
+          keywords: [teacherName, subjectName].filter(Boolean),
+          keywordsEn: [teacherName, subjectNameEn].filter(Boolean),
+          tags: [],
+          date: '',
+          updated: '',
+          html: '',
+          bodyText: f.title || f.slug,
+          live: true,
+        });
+      }
+    }
+  }
+
+  files.sort((a, b) => String(a.title).localeCompare(String(b.title), 'zh-Hant'));
+  return { ok: true, files, storage: 'local', count: files.length };
+}
+
+/** 把該老師 Drive 上的 .md 拉回本機 wiki/（讓目錄／建置看得到） */
+export async function pullTeacherDriveToLocal(teacherId) {
+  if (!teacherId) throw new Error('缺少 teacherId');
+  if (!isDriveConfigured()) {
+    return { ok: true, pulled: 0, skipped: true, reason: 'drive-not-configured' };
+  }
+
+  const dir = teacherDir(teacherId);
+  const subjectIds = new Set();
+  if (fs.existsSync(dir)) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory() && !e.name.startsWith('_')) subjectIds.add(e.name);
+    }
+  }
+  // 若本機尚無科目夾，至少試科目目錄裡常見的（避免掃全部 12 科太慢）
+  if (!subjectIds.size) {
+    for (const s of getSubjectCatalog().slice(0, 6)) subjectIds.add(s.id);
+  }
+
+  let pulled = 0;
+  const errors = [];
+  for (const subjectId of subjectIds) {
+    try {
+      const remote = await listTeacherMarkdownFiles(teacherId, subjectId, { create: false });
+      for (const f of remote) {
+        try {
+          const full = await readTeacherMarkdown(teacherId, subjectId, f.slug);
+          const destDir = subjectDir(teacherId, subjectId);
+          fs.mkdirSync(destDir, { recursive: true });
+          fs.writeFileSync(path.join(destDir, f.filename), full.content, 'utf8');
+          upsertWikiIndexLink(teacherId, subjectId, f.slug, extractTitle(full.content, f.slug));
+          pulled += 1;
+        } catch (err) {
+          errors.push(`${subjectId}/${f.slug}: ${err.message || err}`);
+        }
+      }
+    } catch {
+      /* subject folder may not exist on Drive */
+    }
+  }
+
+  return { ok: true, pulled, errors: errors.slice(0, 8) };
 }
 
 export async function uploadTeacherFile(user, { subjectId, filename, content, teacherId: reqTeacherId }) {
@@ -696,25 +835,56 @@ export async function deleteTeacherFile(user, { subjectId, slug, teacherId: reqT
   const filePath = path.join(subjectDir(teacherId, subjectId), `${noteSlug}.md`);
   const hadLocal = fs.existsSync(filePath);
 
+  // 先刪本機，避免列表「本機優先」又把已刪雲端檔掃回來
+  let localDeleted = false;
+  if (hadLocal) {
+    fs.unlinkSync(filePath);
+    localDeleted = true;
+  }
+
   let driveResult = { skipped: true };
   if (isDriveConfigured()) {
     try {
       driveResult = await deleteTeacherMarkdown(teacherId, subjectId, `${noteSlug}.md`);
     } catch (err) {
       console.error('Drive deleteTeacherMarkdown:', err);
-      // Drive 404／權限偶發不應擋住本機刪除
       driveResult = { ok: false, error: String(err.message || err) };
     }
   }
 
-  if (hadLocal) {
-    fs.unlinkSync(filePath);
-  }
   removeWikiIndexLink(teacherId, subjectId, noteSlug);
 
-  const driveOk = driveResult.ok !== false || driveResult.skipped;
-  if (!hadLocal && driveResult.ok === false && !driveResult.skipped) {
+  // 雙重確認本機已不存在
+  if (fs.existsSync(filePath)) {
+    try {
+      fs.unlinkSync(filePath);
+      localDeleted = true;
+    } catch (err) {
+      throw new Error(`本機刪除失敗：${err.message || err}`);
+    }
+  }
+
+  const driveGone =
+    driveResult.skipped ||
+    driveResult.ok === true ||
+    /already-gone|not-on-drive|no-folder/i.test(String(driveResult.reason || ''));
+
+  if (!localDeleted && !driveGone && driveResult.ok === false) {
     throw new Error(driveResult.error || `刪除失敗：找不到 ${noteSlug}.md`);
+  }
+
+  if (!localDeleted && driveResult.skipped && driveResult.reason === 'not-on-drive') {
+    // 本機與雲端都不存在：視為已刪（列表重整即可）
+    return {
+      ok: true,
+      teacherId,
+      subjectId,
+      slug: noteSlug,
+      storage: isDriveConfigured() ? 'google-drive' : 'local',
+      drive: driveResult,
+      localDeleted: false,
+      message: `${noteSlug}.md 已不存在（可能先前已刪）`,
+    };
   }
 
   return {
@@ -722,8 +892,9 @@ export async function deleteTeacherFile(user, { subjectId, slug, teacherId: reqT
     teacherId,
     subjectId,
     slug: noteSlug,
-    storage: isDriveConfigured() ? (driveOk ? 'google-drive' : 'local') : 'local',
+    storage: isDriveConfigured() ? (driveGone ? 'google-drive' : 'local') : 'local',
     drive: driveResult,
+    localDeleted,
     message: `已刪除 ${noteSlug}.md`,
   };
 }
@@ -789,20 +960,30 @@ export function renameTeacherFile(user, { subjectId, oldSlug, newSlug, teacherId
   };
 }
 
-export async function runWikiSync() {
-  const root = projectRoot();
+export async function runWikiSync(user) {
   const drive = getDriveStatus();
+  const teacherId = resolveWriteTeacherId(user);
+  let pull = { pulled: 0, skipped: true };
+
+  if (drive.configured && teacherId) {
+    pull = await pullTeacherDriveToLocal(teacherId);
+  }
+
   if (drive.configured) {
     return {
       ok: true,
       message:
-        '筆記真實來源為 Google Shared Drive。同步完成（後續將接 RAG 索引／Pages 快照）。無需再 git push 老師筆記。',
+        pull.pulled > 0
+          ? `已從 Google Drive 拉回 ${pull.pulled} 篇到本機鏡像。請重新整理 WikiNB／我的筆記；瀏覽請用即時筆記頁（不會再 404）。`
+          : '雲端已對齊本機鏡像（無新檔可拉）。WikiNB 搜尋會讀即時目錄；開啟筆記請用即時頁，勿依賴舊的靜態 /wiki/ 網址。',
       gitPush: false,
       storage: 'google-drive',
       drive,
+      pull,
     };
   }
 
+  const root = projectRoot();
   const autoPush = process.env.AUTO_GIT_PUSH === 'true';
 
   if (!autoPush) {
@@ -810,7 +991,7 @@ export async function runWikiSync() {
     return {
       ok: true,
       message:
-        'Drive 尚未設定：僅本機建置。請在 auth/.env 設定 GOOGLE_DRIVE_FOLDER_ID 與服務帳號。',
+        'Drive 尚未設定：已本機建置。請設定 Google Drive 後，筆記會即時可讀，不必等 git push。',
       gitPush: false,
       storage: 'local',
       drive,

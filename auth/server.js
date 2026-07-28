@@ -33,7 +33,9 @@ import {
   listSubjectsForTeacher,
   listTeacherFiles,
   listAllTeacherFiles,
+  buildLocalWikiCatalog,
   readTeacherFile,
+  readWikiNoteContent,
   renameTeacherFile,
   resolveWriteTeacherId,
   runWikiSync,
@@ -611,6 +613,14 @@ app.get('/api/wiki/subjects', requireTeacher, (req, res) => {
   }
 });
 
+app.get('/api/wiki/catalog', requireAuth, (_req, res) => {
+  try {
+    res.json(buildLocalWikiCatalog());
+  } catch (err) {
+    res.status(500).json({ error: err.message || '無法讀取筆記目錄' });
+  }
+});
+
 app.get('/api/wiki/list', requireTeacher, async (req, res) => {
   try {
     const result = await listTeacherFiles(req.user, {
@@ -634,12 +644,24 @@ app.get('/api/wiki/list-all', requireTeacher, async (req, res) => {
   }
 });
 
-app.get('/api/wiki/read', requireTeacher, async (req, res) => {
+app.get('/api/wiki/read', requireAuth, async (req, res) => {
   try {
-    const result = await readTeacherFile(req.user, {
-      subjectId: req.query.subjectId,
-      slug: req.query.slug,
-      teacherId: req.query.teacherId,
+    const teacherId = String(req.query.teacherId || '').trim();
+    const subjectId = String(req.query.subjectId || '').trim();
+    const slug = String(req.query.slug || '').trim();
+    const ownId = resolveWriteTeacherId(req.user, teacherId || undefined);
+    const targetTeacherId = teacherId || ownId;
+    if (!targetTeacherId) {
+      res.status(400).json({ error: '請指定 teacherId' });
+      return;
+    }
+    // 自己的資料夾可打 Drive；其他人只能讀本機已鏡像的筆記
+    const allowDrive = Boolean(ownId && ownId === targetTeacherId);
+    const result = await readWikiNoteContent({
+      teacherId: targetTeacherId,
+      subjectId,
+      slug,
+      allowDrive,
     });
     res.json(result);
   } catch (err) {
@@ -701,9 +723,9 @@ app.post('/api/wiki/delete', requireTeacher, async (req, res) => {
   }
 });
 
-app.post('/api/sync', requireTeacher, async (_req, res) => {
+app.post('/api/sync', requireTeacher, async (req, res) => {
   try {
-    const result = await runWikiSync();
+    const result = await runWikiSync(req.user);
     res.json(result);
   } catch (err) {
     console.error('sync:', err);

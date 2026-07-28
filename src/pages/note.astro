@@ -1,0 +1,124 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const base = import.meta.env.BASE_URL;
+---
+
+<BaseLayout title="筆記" description="即時讀取雲端／本機筆記（不依賴 Pages 靜態建置）">
+  <div class="animate-fadeIn mx-auto max-w-3xl">
+    <div id="note-gate" class="kc-card hidden p-8 text-center text-kc-muted">請先登入後再開啟筆記。</div>
+    <div id="note-offline" class="kc-card hidden border border-amber-200 bg-amber-50/50 p-6 text-amber-950"></div>
+    <div id="note-loading" class="kc-card p-8 text-center text-kc-muted">載入筆記中…</div>
+    <div id="note-error" class="kc-card hidden border border-red-200 bg-red-50/80 p-6 text-red-800"></div>
+
+    <article id="note-article" class="hidden">
+      <header class="mb-8">
+        <div id="note-tags" class="mb-3 flex flex-wrap items-center gap-2"></div>
+        <h1 id="note-title" class="font-display text-3xl font-bold text-kc-blue-deep md:text-4xl"></h1>
+        <p id="note-meta" class="mt-2 text-sm text-kc-muted"></p>
+      </header>
+      <div id="note-body" class="kc-card kc-core-card wiki-content p-6 md:p-10"></div>
+      <div class="mt-8 flex flex-wrap gap-3">
+        <a href={`${base}search`} class="kc-btn-ghost" data-i18n="wiki.library">← 筆記庫</a>
+        <a id="note-edit" href="#" class="kc-btn-secondary hidden">Edit</a>
+        <a href={`${base}my-notes`} class="kc-btn-ghost">My notes</a>
+      </div>
+    </article>
+  </div>
+</BaseLayout>
+
+<script>
+  import {
+    checkAuthHealth,
+    fetchMe,
+    isTeacherUser,
+    readWikiFile,
+  } from '../scripts/auth-client.js';
+  import { markdownToHtml } from '../scripts/md-render.js';
+
+  function pageBase() {
+    return document.documentElement.dataset.base || '/WikiNB-KCIS/';
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const teacherId = params.get('teacherId') || '';
+  const subjectId = params.get('subjectId') || '';
+  const slug = params.get('slug') || '';
+
+  const gate = document.getElementById('note-gate');
+  const offline = document.getElementById('note-offline');
+  const loading = document.getElementById('note-loading');
+  const errEl = document.getElementById('note-error');
+  const article = document.getElementById('note-article');
+
+  function showError(msg) {
+    loading?.classList.add('hidden');
+    if (errEl) {
+      errEl.textContent = msg || '無法開啟筆記';
+      errEl.classList.remove('hidden');
+    }
+  }
+
+  (async () => {
+    if (!subjectId || !slug) {
+      showError('網址缺少 subjectId 或 slug。請從「我的筆記」或 WikiNB 搜尋點開。');
+      return;
+    }
+
+    const me = await fetchMe().catch(() => ({ authenticated: false }));
+    if (!me.authenticated) {
+      loading?.classList.add('hidden');
+      const next = `${window.location.pathname}${window.location.search}`;
+      window.location.replace(
+        `${pageBase()}login?next=${encodeURIComponent(next)}`,
+      );
+      gate?.classList.remove('hidden');
+      return;
+    }
+
+    const health = await checkAuthHealth();
+    if (!health.online) {
+      loading?.classList.add('hidden');
+      if (offline) {
+        offline.textContent = health.message || 'Auth 離線，無法讀取即時筆記。';
+        offline.classList.remove('hidden');
+      }
+      return;
+    }
+
+    const tid = teacherId || me.user?.teacherId || '';
+    if (!tid) {
+      showError('缺少 teacherId');
+      return;
+    }
+
+    try {
+      const data = await readWikiFile({ subjectId, slug, teacherId: tid });
+      const title = data.title || slug;
+      document.title = `${title} · WikiNB KCIS`;
+      const titleEl = document.getElementById('note-title');
+      const bodyEl = document.getElementById('note-body');
+      const tagsEl = document.getElementById('note-tags');
+      const metaEl = document.getElementById('note-meta');
+      if (titleEl) titleEl.textContent = title;
+      if (metaEl) {
+        metaEl.textContent = `${data.storage || 'live'} · ${tid}/${subjectId}/${slug}.md`;
+      }
+      if (tagsEl) {
+        tagsEl.innerHTML = `<span class="tag-keyword">${tid}</span><span class="tag-keyword">${subjectId}</span>`;
+      }
+      if (bodyEl) bodyEl.innerHTML = markdownToHtml(data.content || '', { base: pageBase() });
+
+      const edit = document.getElementById('note-edit');
+      if (edit && isTeacherUser(me.user) && me.user.teacherId === tid) {
+        edit.href = `${pageBase()}editor?mode=edit&subjectId=${encodeURIComponent(subjectId)}&slug=${encodeURIComponent(slug)}`;
+        edit.classList.remove('hidden');
+      }
+
+      loading?.classList.add('hidden');
+      article?.classList.remove('hidden');
+    } catch (err) {
+      showError(err.message || '讀取失敗（可能已刪除或尚未同步到本機鏡像）');
+    }
+  })();
+</script>

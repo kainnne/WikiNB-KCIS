@@ -18,6 +18,14 @@ const base = import.meta.env.BASE_URL;
           id="login-offline"
           class="mt-5 hidden rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-left text-sm leading-relaxed text-amber-950"
         ></div>
+        <p id="login-local-url" class="mt-3 hidden text-center text-xs text-kc-muted">
+          本機測試請開：
+          <a
+            class="font-semibold text-kc-blue underline underline-offset-2"
+            href="http://127.0.0.1:4322/WikiNB-KCIS/login"
+            >http://127.0.0.1:4322/WikiNB-KCIS/login</a
+          >
+        </p>
         <div id="login-local-hint" class="mt-3 hidden space-y-3 rounded-2xl border border-kc-blue/20 bg-white/70 p-4 text-left text-sm text-kc-blue-deep">
           <p id="hint-title" class="font-semibold"></p>
           <p id="hint-body" class="text-xs text-kc-muted"></p>
@@ -89,7 +97,55 @@ const base = import.meta.env.BASE_URL;
     return document.documentElement.dataset.base || '/WikiNB-KCIS/';
   }
 
+  /** 僅允許站內相對路徑 next= */
+  function consumeLoginNext() {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get('next') || '';
+    if (fromQuery) {
+      try {
+        sessionStorage.setItem('wikinb_login_next', fromQuery);
+      } catch {
+        /* ignore */
+      }
+    }
+    let next = fromQuery;
+    try {
+      next = next || sessionStorage.getItem('wikinb_login_next') || '';
+    } catch {
+      /* ignore */
+    }
+    if (!next.startsWith('/') || next.startsWith('//')) return '';
+    const base = pageBase().replace(/\/$/, '');
+    if (!(next === base || next.startsWith(`${base}/`) || next.startsWith('/WikiNB-KCIS'))) {
+      return '';
+    }
+    try {
+      sessionStorage.removeItem('wikinb_login_next');
+    } catch {
+      /* ignore */
+    }
+    return next;
+  }
+
+  function goAfterLogin() {
+    const next = consumeLoginNext();
+    window.location.href = next || `${pageBase()}login/success`;
+  }
+
+  // 進入登入頁時先記住 next（setup 流程也用得到）
+  (() => {
+    const n = new URLSearchParams(window.location.search).get('next');
+    if (n) {
+      try {
+        sessionStorage.setItem('wikinb_login_next', n);
+      } catch {
+        /* ignore */
+      }
+    }
+  })();
+
   const offlineEl = document.getElementById('login-offline');
+  const localUrlEl = document.getElementById('login-local-url');
   const localHintEl = document.getElementById('login-local-hint');
   const hintTitle = document.getElementById('hint-title');
   const hintBody = document.getElementById('hint-body');
@@ -135,13 +191,13 @@ const base = import.meta.env.BASE_URL;
       await navigator.clipboard.writeText(text);
       if (btn) {
         const prev = btn.textContent;
-        btn.textContent = '已複製！去終端機貼上';
+        btn.textContent = text.startsWith('http') ? '已複製！去瀏覽器貼上' : '已複製！去終端機貼上';
         setTimeout(() => {
           btn.textContent = prev;
         }, 2000);
       }
     } catch {
-      if (btn) btn.textContent = '請手動全選上方指令';
+      if (btn) btn.textContent = '請手動全選上方內容';
     }
   }
 
@@ -168,7 +224,7 @@ const base = import.meta.env.BASE_URL;
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'kc-btn-secondary w-full justify-center py-2 text-sm';
-      btn.textContent = '複製這段';
+      btn.textContent = item.cmd.startsWith('http') ? '複製網址' : '複製這段';
       btn.addEventListener('click', () => copyText(item.cmd, btn));
       wrap.appendChild(lab);
       wrap.appendChild(pre);
@@ -176,6 +232,7 @@ const base = import.meta.env.BASE_URL;
       hintCommands.appendChild(wrap);
     }
     localHintEl.classList.remove('hidden');
+    localUrlEl?.classList.remove('hidden');
   }
 
   function showEmailStep() {
@@ -196,7 +253,13 @@ const base = import.meta.env.BASE_URL;
   }
 
   diagnoseAuthConnection().then((diag) => {
-    if (diag.online) return;
+    if (diag.online) {
+      // 本機正常時仍提醒正確網址（避免開到 4322 根路徑）
+      if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
+        localUrlEl?.classList.remove('hidden');
+      }
+      return;
+    }
     if (offlineEl) {
       offlineEl.textContent = diag.title || diag.message || 'Auth 未連線';
       offlineEl.classList.remove('hidden');
@@ -218,7 +281,7 @@ const base = import.meta.env.BASE_URL;
     try {
       const me = await fetchMe();
       if (me.authenticated && me.user) {
-        window.location.href = `${pageBase()}login/success`;
+        goAfterLogin();
       }
     } catch {
       /* ignore */
@@ -305,7 +368,7 @@ const base = import.meta.env.BASE_URL;
       }
       const result = await loginWithCode({ email: currentEmail, code, purpose: 'login' });
       showOk(result.message || '登入成功');
-      window.location.href = `${pageBase()}login/success`;
+      goAfterLogin();
     } catch (err) {
       showErr(err.message || '驗證碼錯誤');
     } finally {
