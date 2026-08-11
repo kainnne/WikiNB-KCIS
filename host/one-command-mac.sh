@@ -49,7 +49,7 @@ start_auth() {
     cd "$ROOT"
     export HOST=0.0.0.0
     export PORT="$PORT"
-    export FRONTEND_ORIGINS=https://zx50416.github.io,http://127.0.0.1:4322,http://localhost:4322
+    export FRONTEND_ORIGINS=https://wikinb.kcis.kainnne.com,https://kainnne.github.io,https://zx50416.github.io,http://127.0.0.1:4322,http://localhost:4322
     export COOKIE_SAMESITE=none
     # AUTH_BASE_URL 由 .env 讀取（稍後會寫入 Tunnel 網址）
     nohup npm run auth >>"$AUTH_LOG" 2>&1 &

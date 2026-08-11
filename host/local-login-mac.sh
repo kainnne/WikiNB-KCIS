@@ -36,7 +36,7 @@ if ! auth_ok; then
     export HOST=0.0.0.0
     export PORT="$PORT_AUTH"
     export COOKIE_SAMESITE="${COOKIE_SAMESITE:-lax}"
-    export FRONTEND_ORIGINS="http://127.0.0.1:${PORT_DEV},http://localhost:${PORT_DEV},https://zx50416.github.io"
+    export FRONTEND_ORIGINS="http://127.0.0.1:${PORT_DEV},http://localhost:${PORT_DEV},https://wikinb.kcis.kainnne.com,https://kainnne.github.io,https://zx50416.github.io"
     nohup npm run auth >>"$LOG_DIR/auth.log" 2>&1 &
     echo $! >"$LOG_DIR/auth.pid"
   )

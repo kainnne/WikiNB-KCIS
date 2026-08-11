@@ -28,6 +28,8 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
+          PUBLIC_SITE_URL: https://wikinb.kcis.kainnne.com
+          PUBLIC_BASE_PATH: /
           # 瀏覽器用的 Auth URL（本機測：localhost；遠端再改成公開 Auth）
           PUBLIC_AUTH_URL: ${{ vars.PUBLIC_AUTH_URL || 'http://127.0.0.1:8790' }}
           PUBLIC_AUTH_PRODUCTION_URL: ${{ vars.PUBLIC_AUTH_PRODUCTION_URL || '' }}
