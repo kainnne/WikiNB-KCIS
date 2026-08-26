@@ -37,6 +37,19 @@ const maintenanceHtml = `<!doctype html>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
     <meta name="theme-color" content="#f7f9ff">
+    <meta property="og:title" content="${escapeHtml(maintenance.title)}">
+    <meta property="og:description" content="${escapeHtml(maintenance.message)}">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://kainnne.com/brand/kainnne-mark.png">
+    <meta property="og:image:width" content="1254">
+    <meta property="og:image:height" content="1254">
+    <meta property="og:image:alt" content="Kainnne flowing ribbon K brand mark">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="${escapeHtml(maintenance.title)}">
+    <meta name="twitter:description" content="${escapeHtml(maintenance.message)}">
+    <meta name="twitter:image" content="https://kainnne.com/brand/kainnne-mark.png">
+    <link rel="icon" type="image/png" href="https://kainnne.com/brand/kainnne-mark.png">
+    <link rel="apple-touch-icon" href="https://kainnne.com/brand/kainnne-mark.png">
     <title>${escapeHtml(maintenance.title)}</title>
     <style>
       :root{color-scheme:light;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
@@ -69,7 +82,8 @@ for (const htmlFile of htmlFiles) {
   const html = await readFile(htmlFile, 'utf8');
   assert.match(html, /data-maintenance-mode="active"/);
   assert.match(html, /WikiNB 功能暫停中/);
-  assert.doesNotMatch(html, /id="auth-config"|cdn\.jsdelivr\.net|<_?script|<link/i);
+  assert.match(html, /https:\/\/kainnne\.com\/brand\/kainnne-mark\.png/);
+  assert.doesNotMatch(html, /id="auth-config"|cdn\.jsdelivr\.net|<_?script/i);
 }
 
 console.log(`Maintenance build verified: ${htmlFiles.length} HTML file(s).`);
