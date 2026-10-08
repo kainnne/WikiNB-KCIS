@@ -5,6 +5,7 @@
  * 過渡期不依賴 Mac＋Cloudflare Tunnel 主機腳本。
  */
 import { t } from './i18n.js';
+import { mountSchoolAccount } from './school-account.js';
 function readAuthConfig() {
   const el = document.getElementById('auth-config');
   if (el?.textContent) {
@@ -28,7 +29,9 @@ function getAuthBase() {
     cfg.productionUrl || import.meta.env.PUBLIC_AUTH_PRODUCTION_URL || '',
   ).replace(/\/$/, '');
 
-  if(typeof location !== 'undefined' && ['localhost','127.0.0.1'].includes(location.hostname)) return local;
+  if(typeof location !== 'undefined' && ['localhost','127.0.0.1'].includes(location.hostname)) {
+    const endpoint=new URL(local);if(['localhost','127.0.0.1'].includes(endpoint.hostname))endpoint.hostname=location.hostname;return endpoint.href.replace(/\/$/,'');
+  }
   return /^https:\/\//i.test(production) ? production : '';
 }
 
@@ -307,7 +310,8 @@ export async function checkAuthHealth() {
 export async function fetchMe(options = {}) {
   const timeoutMs = Number(options.timeoutMs ?? 4000);
   try {
-    const data = await withTimeout(authFetch('/api/auth/me'), timeoutMs, 'auth-me-timeout');
+    const shared = await withTimeout(authFetch('/api/auth/shared-session'), timeoutMs, 'auth-me-timeout');
+    const data = { ...shared, authenticated: Boolean(shared.user) };
     if (!data?.authenticated) {
       clearSessionHint();
       return { ok: false, authenticated: false };
@@ -866,19 +870,12 @@ export async function mountNavAuth() {
     }
   });
 
-  const handleLogout = async (e) => {
-    e.preventDefault();
-    closeMenu();
-    closeMobileMenu();
-    await logout();
-    await update();
-    const base = document.documentElement.dataset.base || '/';
-    window.location.href = `${base}login?logged_out=1`;
-  };
-
-  logoutBtn?.addEventListener('click', handleLogout);
-  mobileLogout?.addEventListener('click', handleLogout);
+  /* Account actions stay on the current tool. */
+  await mountSchoolAccount({onChange:update});
   document.addEventListener('wikinb:locale-change', update);
+  window.addEventListener('kcis:session', update);
+  window.addEventListener('storage', e => { if(e.key==='kcis:auth-change')void update(); });
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible')void update(); });
 
   await update();
 }

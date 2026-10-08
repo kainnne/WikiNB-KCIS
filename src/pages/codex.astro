@@ -1,4 +1,344 @@
 ---
-import Library from "./library.astro";
+import BaseLayout from '../layouts/BaseLayout.astro';
+import '@fontsource/iansui/chinese-traditional-400.css';
+import '@fontsource/iansui/latin-400.css';
+import '../styles/codex.css';
+
+const base = import.meta.env.BASE_URL;
 ---
-<Library />
+
+<BaseLayout title="Gemini × KCIS" description="WikiNB KCIS · Gemini 複習助理">
+  <div class="animate-fadeIn codex-page">
+    <div class="mb-4 flex flex-wrap items-end justify-between gap-2 sm:gap-4">
+      <div class="min-w-0">
+        <h1 class="codex-page-title text-2xl font-bold text-kc-blue-deep sm:text-3xl md:text-4xl">
+          <span
+            class="bg-gradient-to-r from-kc-blue to-kc-purple bg-clip-text text-transparent"
+            data-i18n="gemini.title">Gemini × KCIS</span
+          >
+        </h1>
+      </div>
+      <a href={base} class="kc-btn-ghost shrink-0 text-sm">← 首頁</a>
+    </div>
+
+    <div id="codex-gate" class="kc-card hidden p-8 text-center">
+      <p class="text-kc-muted">
+        <span data-i18n="gemini.gate">請先登入後使用 Gemini。</span>
+        <a href={`${base}login`} class="font-semibold text-kc-blue" data-i18n="nav.login">登入</a>
+      </p>
+    </div>
+
+    <div id="codex-offline" class="kc-card hidden border border-amber-200 bg-amber-50/50 p-6 text-center text-amber-900"></div>
+
+    <div id="codex-terminal" class="codex-terminal hidden">
+      <div id="codex-output" class="codex-output"></div>
+      <form id="codex-form" class="codex-input-row">
+        <span class="codex-prompt">›</span>
+        <input
+          id="codex-input"
+          type="text"
+          class="codex-input"
+          data-i18n-placeholder="gemini.placeholder"
+          placeholder="問你的 wiki 筆記…"
+          autocomplete="off"
+        />
+        <button id="codex-stop" type="button" class="codex-stop" disabled data-i18n="gemini.stop">停止</button>
+        <button id="codex-send" type="submit" class="codex-send" data-i18n="gemini.send">送出</button>
+      </form>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { t, getLocale } from '../scripts/i18n.js';
+  import {
+    checkAuthHealth,
+    fetchMe,
+    codexChatStream,
+    fetchCodexModels,
+    stopCodex,
+  } from '../scripts/auth-client.js';
+  import { markdownToHtml } from '../scripts/md-render.js';
+
+  const gate = document.getElementById('codex-gate');
+  const offline = document.getElementById('codex-offline');
+  const terminal = document.getElementById('codex-terminal');
+  const output = document.getElementById('codex-output');
+  const form = document.getElementById('codex-form');
+  const input = document.getElementById('codex-input');
+  const sendBtn = document.getElementById('codex-send');
+  const stopBtn = document.getElementById('codex-stop');
+
+  let abortController = null;
+  let running = false;
+  let fixedModel = 'gemini-flash-latest';
+  /** @type {{ role: string, content: string }[]} */
+  let chatHistory = [];
+
+  const EXAMPLE_KEYS = [
+    'gemini.example1',
+    'gemini.example2',
+    'gemini.example3',
+    'gemini.example4',
+  ];
+
+  function pageBase() {
+    return document.documentElement.dataset.base || '/WikiNB-KCIS/';
+  }
+
+  function setBubbleText(bubble, text, role = 'assistant') {
+    if (!bubble) return;
+    if (role === 'assistant') {
+      bubble.classList.add('codex-md', 'wiki-content');
+      bubble.innerHTML = markdownToHtml(String(text ?? ''), {
+        base: pageBase(),
+        linkifyWiki: true,
+      });
+    } else {
+      bubble.classList.remove('codex-md', 'wiki-content');
+      bubble.textContent = text;
+    }
+  }
+
+  function appendLine(text, role = 'assistant') {
+    const line = document.createElement('div');
+    line.className = `codex-line codex-line-${role}`;
+    const bubble = document.createElement('div');
+    bubble.className = 'codex-bubble';
+    setBubbleText(bubble, text, role);
+    line.appendChild(bubble);
+    output?.appendChild(line);
+    output?.scrollTo({ top: output.scrollHeight, behavior: 'smooth' });
+    return line;
+  }
+
+  function fillExamplePrompt(text) {
+    if (!input || running) return;
+    input.value = text;
+    input.focus();
+    input.setSelectionRange(text.length, text.length);
+  }
+
+  /** @type {HTMLElement | null} */
+  let welcomeRoot = null;
+
+  function refreshWelcomeLocale() {
+    if (!welcomeRoot) return;
+    const title = welcomeRoot.querySelector('.codex-welcome-title');
+    const intro = welcomeRoot.querySelector('.codex-welcome-intro');
+    if (title) title.textContent = t('gemini.connected');
+    if (intro) intro.textContent = t('gemini.examplesIntro');
+    welcomeRoot.querySelectorAll('.codex-example-btn[data-i18n-key]').forEach((btn) => {
+      const key = btn.getAttribute('data-i18n-key');
+      if (!key) return;
+      const prompt = t(key);
+      btn.textContent = prompt;
+      btn.title = prompt;
+    });
+  }
+
+  function appendWelcomeWithExamples() {
+    const line = document.createElement('div');
+    line.className = 'codex-line codex-line-system';
+    line.id = 'codex-welcome-line';
+    const bubble = document.createElement('div');
+    bubble.className = 'codex-bubble codex-welcome';
+
+    const title = document.createElement('p');
+    title.className = 'codex-welcome-title';
+    title.textContent = t('gemini.connected');
+
+    const intro = document.createElement('p');
+    intro.className = 'codex-welcome-intro';
+    intro.textContent = t('gemini.examplesIntro');
+
+    const list = document.createElement('ul');
+    list.className = 'codex-example-list';
+    for (const key of EXAMPLE_KEYS) {
+      const prompt = t(key);
+      const item = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'codex-example-btn';
+      btn.setAttribute('data-i18n-key', key);
+      btn.textContent = prompt;
+      btn.title = prompt;
+      btn.addEventListener('click', () => {
+        fillExamplePrompt(t(key));
+      });
+      item.appendChild(btn);
+      list.appendChild(item);
+    }
+
+    bubble.append(title, intro, list);
+    line.appendChild(bubble);
+    output?.appendChild(line);
+    welcomeRoot = bubble;
+    output?.scrollTo({ top: output.scrollHeight, behavior: 'smooth' });
+  }
+
+  function startElapsedTimer() {
+    const startedAt = Date.now();
+    const line = appendLine('0s', 'system');
+    const bubble = line.querySelector('.codex-bubble');
+    const id = setInterval(() => {
+      const sec = Math.floor((Date.now() - startedAt) / 1000);
+      if (bubble) bubble.textContent = `${sec}s`;
+    }, 1000);
+    return {
+      stop() {
+        clearInterval(id);
+        const sec = Math.floor((Date.now() - startedAt) / 1000);
+        if (bubble) bubble.textContent = t('gemini.totalTime', { sec });
+        return sec;
+      },
+    };
+  }
+
+  function formatElapsed(ms) {
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    const rem = s % 60;
+    if (getLocale() === 'zh-TW') {
+      return m > 0 ? `${m}分${String(rem).padStart(2, '0')}秒` : `${rem} 秒`;
+    }
+    return m > 0 ? `${m}m ${String(rem).padStart(2, '0')}s` : `${rem}s`;
+  }
+
+  function setRunning(isRunning) {
+    running = isRunning;
+    if (sendBtn) sendBtn.disabled = isRunning;
+    if (stopBtn) {
+      stopBtn.disabled = !isRunning;
+      stopBtn.textContent = t('gemini.stop');
+    }
+    input?.toggleAttribute('disabled', isRunning);
+  }
+
+  async function loadModels() {
+    try {
+      const data = await fetchCodexModels();
+      fixedModel = data.defaultModel || data.models?.[0]?.id || fixedModel;
+      if (data.error) appendLine(data.error, 'error');
+    } catch (err) {
+      appendLine(err.message || t('gemini.connectFail'), 'error');
+    }
+  }
+
+  function onLocaleChange() {
+    refreshWelcomeLocale();
+    if (stopBtn && !running) stopBtn.textContent = t('gemini.stop');
+  }
+
+  document.addEventListener('wikinb:locale-change', onLocaleChange);
+
+  async function init() {
+    const me = await fetchMe().catch(() => ({ authenticated: false }));
+    if (!me.authenticated) {
+      gate?.classList.remove('hidden');
+      return;
+    }
+    const health = await checkAuthHealth();
+    if (!health.online) {
+      if (offline) {
+        offline.textContent =
+          health.message || 'API 未連線。請在終端機執行 npm run auth（埠 8790）。';
+        offline.classList.remove('hidden');
+      }
+      return;
+    }
+    terminal?.classList.remove('hidden');
+    await loadModels();
+    appendWelcomeWithExamples();
+    onLocaleChange();
+    input?.focus();
+  }
+
+  stopBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (!running) return;
+    stopBtn.disabled = true;
+    stopBtn.textContent = t('gemini.stopping');
+    try {
+      await stopCodex();
+    } catch {
+      /* ignore */
+    }
+    abortController?.abort();
+  });
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (running) return;
+    const msg = input?.value?.trim();
+    if (!msg) return;
+
+    appendLine(msg, 'user');
+    input.value = '';
+
+    abortController = new AbortController();
+    setRunning(true);
+    const timer = startElapsedTimer();
+
+    const progress = document.createElement('div');
+    progress.className = 'codex-line codex-line-system';
+    const progressBubble = document.createElement('div');
+    progressBubble.className = 'codex-bubble';
+    progressBubble.textContent = t('gemini.starting');
+    progress.appendChild(progressBubble);
+    output?.appendChild(progress);
+
+    const liveWrap = document.createElement('div');
+    liveWrap.className = 'codex-line codex-line-live';
+    const liveBubble = document.createElement('div');
+    liveBubble.className = 'codex-bubble';
+    liveWrap.appendChild(liveBubble);
+    output?.appendChild(liveWrap);
+
+    let liveText = '';
+    try {
+      const result = await codexChatStream(
+        msg,
+        (ev) => {
+          if (ev.type === 'status' || ev.type === 'event') {
+            progressBubble.textContent = ev.message || ev.summary || t('gemini.working');
+          } else if (ev.type === 'delta' && ev.text) {
+            liveText += ev.text;
+            setBubbleText(liveBubble, liveText, 'assistant');
+            output?.scrollTo({ top: output.scrollHeight });
+          }
+        },
+        {
+          model: fixedModel,
+          reasoningEffort: 'default',
+          signal: abortController.signal,
+          history: chatHistory.slice(-16),
+        },
+      );
+
+      timer.stop();
+      progress.remove();
+      const finalText = result.answer || liveText || '（無回應）';
+      chatHistory.push({ role: 'user', content: msg });
+      if (!result.stopped) chatHistory.push({ role: 'assistant', content: finalText });
+      if (chatHistory.length > 24) chatHistory = chatHistory.slice(-24);
+
+      liveWrap.className = `codex-line ${result.stopped ? 'codex-line-system' : 'codex-line-assistant'}`;
+      setBubbleText(liveBubble, finalText, result.stopped ? 'system' : 'assistant');
+      appendLine(t('gemini.done', { time: formatElapsed(result.elapsedMs || 0) }), 'system');
+    } catch (err) {
+      timer.stop();
+      progress.remove();
+      liveWrap.remove();
+      if (err?.name !== 'AbortError') appendLine(err.message || '執行失敗', 'error');
+      else appendLine(t('gemini.stopped'), 'system');
+    } finally {
+      setRunning(false);
+      abortController = null;
+      input?.removeAttribute('disabled');
+      input?.focus();
+    }
+  });
+
+  init();
+</script>

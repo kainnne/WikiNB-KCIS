@@ -65,6 +65,10 @@ const authJson = JSON.stringify({
   </head>
   <body>
     <div class="kc-shell">
+      <script>
+        const trial=import.meta.env.PUBLIC_TRIAL_URL;
+        if(trial&&!['localhost','127.0.0.1'].includes(location.hostname)&&new URL(trial).origin!==location.origin)location.replace(new URL('library'+location.pathname+location.search+location.hash,trial).href);
+      </script>
       <DecorBackground />
       <Header />
       <main class="mx-auto max-w-6xl px-4 pb-16 pt-24 md:px-8">

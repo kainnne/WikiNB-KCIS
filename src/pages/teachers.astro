@@ -1,4 +1,96 @@
 ---
-import Library from "./library.astro";
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getAllTeachers, getSubjectsForTeacher, getAllWikiPages, getPagesByTeacher } from '../lib/wiki';
+
+const allTeachers = getAllTeachers();
+const pages = getAllWikiPages();
+/** 0 筆筆記的老師不列入列表／推薦 */
+const teachers = allTeachers.filter((t) => getPagesByTeacher(pages, t.id).length > 0);
+const base = import.meta.env.BASE_URL;
 ---
-<Library />
+
+<BaseLayout title="老師" description="依老師瀏覽康橋教學筆記">
+  <div class="animate-fadeIn">
+    <h1 class="font-display text-3xl font-bold tracking-tight text-kc-blue-deep sm:text-4xl">
+      <span class="mr-2 inline-block text-kc-purple/70" aria-hidden="true">✦</span>
+      <span data-i18n="teachers.title">老師</span>
+    </h1>
+
+    <div class="mt-8 grid gap-4 sm:grid-cols-2">
+      {teachers.map((t) => {
+        const subjects = getSubjectsForTeacher(t.id);
+        const noteCount = getPagesByTeacher(pages, t.id).length;
+        return (
+          <a
+            href={`${base}search?q=${encodeURIComponent(t.displayName)}`}
+            class="kc-card kc-core-card kc-choice relative block overflow-hidden p-5 transition hover:border-kc-purple/30 sm:p-6"
+          >
+            <span class="kc-sparkles" aria-hidden="true">
+              <span class="kc-sparkle kc-sparkle-a">✦</span>
+              <span class="kc-sparkle kc-sparkle-b">✧</span>
+              <span class="kc-diamond">◇</span>
+            </span>
+            <div class="relative z-[1]">
+              <h2 class="font-display text-lg font-bold text-kc-ink sm:text-xl">{t.displayName}</h2>
+              <p class="mt-1 text-sm text-kc-muted">
+                <span data-i18n="teachers.notes" data-i18n-n={noteCount}>{noteCount} 篇筆記</span>
+                {subjects.length > 0 && (
+                  <>
+                    {' · '}
+                    {subjects.map((s, i) => (
+                      <>
+                        {i > 0 && '、'}
+                        <span data-locale-text data-zh={s.name} data-en={s.nameEn || s.name}>
+                          {s.name}
+                        </span>
+                      </>
+                    ))}
+                  </>
+                )}
+              </p>
+              {subjects.length > 0 && (
+                <div class="mt-4 flex flex-wrap gap-2">
+                  {subjects.map((s) => (
+                    <span
+                      class="tag-keyword"
+                      data-locale-text
+                      data-zh={s.name}
+                      data-en={s.nameEn || s.name}
+                    >
+                      {s.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </a>
+        );
+      })}
+    </div>
+
+    {teachers.length === 0 && (
+      <p class="kc-card mt-8 p-8 text-center text-kc-muted" data-i18n="teachers.empty">尚未建立老師資料夾。</p>
+    )}
+
+    <div class="mt-8">
+      <a href={base} class="kc-btn-ghost" data-i18n="teachers.back">← 回首頁</a>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { applyI18n, t, getLocale } from '../scripts/i18n.js';
+
+  function patchNoteCounts() {
+    document.querySelectorAll('[data-i18n="teachers.notes"]').forEach((el) => {
+      const n = el.getAttribute('data-i18n-n') || '0';
+      el.textContent = t('teachers.notes', { n }, getLocale());
+    });
+  }
+
+  patchNoteCounts();
+  document.addEventListener('wikinb:locale-change', () => {
+    applyI18n();
+    patchNoteCounts();
+  });
+</script>

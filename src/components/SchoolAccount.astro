@@ -1,0 +1,16 @@
+<dialog id="school-account-dialog" aria-labelledby="school-account-title">
+  <button id="school-account-close" type="button" aria-label="Close">×</button>
+  <h2 id="school-account-title"></h2>
+  <p id="school-account-email"></p>
+  <form id="school-account-form">
+    <label id="school-email-field"><span></span><input id="school-email" type="email" autocomplete="email" /></label>
+    <label id="school-code-field" hidden><span></span><input id="school-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" /></label>
+    <label id="school-nickname-field" hidden><span></span><input id="school-nickname" autocomplete="nickname" minlength="2" maxlength="20" /></label>
+    <p id="school-account-error" role="alert"></p>
+    <div class="school-account-actions"><button id="school-account-submit" type="submit"></button><button id="school-account-cancel" type="button" hidden></button></div>
+  </form>
+</dialog>
+<span id="school-account-notice" role="status" class="school-account-notice"></span>
+<style>
+  dialog{width:min(400px,calc(100vw - 32px));padding:28px;border:1px solid var(--kc-line);border-radius:20px;background:#fff;color:var(--kc-blue-deep);box-shadow:0 20px 80px #26376830}dialog::backdrop{background:#20254366;backdrop-filter:blur(3px)}h2{font-size:24px;font-weight:700;margin:0 0 16px}label{display:grid;gap:7px;margin:15px 0}label[hidden]{display:none}input{border:1px solid var(--kc-line);border-radius:10px;padding:11px;width:100%;background:#fff}input:focus{outline:2px solid var(--kc-purple)}button{cursor:pointer}#school-account-close{position:absolute;right:14px;top:10px;padding:5px 10px;font-size:24px;background:none;border:0}#school-account-email{font-size:14px;overflow-wrap:anywhere}#school-account-error{color:#b42338;font-size:14px;margin:12px 0}.school-account-actions{display:flex;gap:10px}.school-account-actions button{border:1px solid var(--kc-line);border-radius:10px;padding:10px 18px;font-weight:700}#school-account-submit{background:var(--kc-blue);color:white}#school-account-submit:disabled{opacity:.5}#school-account-cancel{background:white;color:var(--kc-blue-deep)}.school-account-notice{position:fixed;bottom:18px;right:18px;z-index:100;background:#fff;border-radius:10px;box-shadow:0 4px 20px #26376822;padding:10px 15px;color:var(--kc-blue-deep)}.school-account-notice:empty{display:none}
+</style>

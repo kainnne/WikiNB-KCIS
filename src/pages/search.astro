@@ -1,4 +1,201 @@
 ---
-import Library from "./library.astro";
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SearchBar from '../components/SearchBar.astro';
+import { getAllWikiPages, getSearchIndex } from '../lib/wiki';
+
+const pages = getAllWikiPages();
+/** 公開頁不內嵌全文 HTML／內文，避免未登入即可從原始碼讀筆記 */
+const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest }) => ({
+  ...rest,
+  html: '',
+  bodyText: '',
+}));
 ---
-<Library />
+
+<BaseLayout title="WikiNB" description="搜尋與瀏覽康橋教學筆記">
+  <div class="animate-fadeIn">
+    <div class="mb-6 text-center md:text-left">
+      <h1 class="font-display text-4xl font-bold md:text-5xl">
+        <span class="brand-gradient-text" data-i18n="search.title">WikiNB</span>
+      </h1>
+      <p class="mt-2 text-kc-muted" data-i18n="search.subtitle">
+        搜尋與瀏覽同一頁 · 最新在上 · 登入後可展開／開啟筆記
+      </p>
+    </div>
+
+    <div class="mx-auto max-w-3xl">
+      <SearchBar size="lg" showButton={true} action="/search" />
+    </div>
+
+    <p id="search-meta" class="mt-4 text-center text-sm text-kc-muted md:text-left"></p>
+
+    <div
+      id="search-results"
+      data-search-results
+      class="wiki-scroll kc-card mx-auto mt-6 max-w-3xl divide-y overflow-hidden"
+    ></div>
+    <div id="search-empty" class="kc-card mx-auto mt-6 hidden max-w-3xl p-8 text-center text-kc-muted"></div>
+  </div>
+
+  <script>
+    import { createWikiSearch } from '../scripts/wiki-search.js';
+    import {
+      fetchWikiCatalog,
+      hasSessionHint,
+      isTeacherUser,
+      listAllWikiFiles,
+      requireLogin,
+    } from '../scripts/auth-client.js';
+    import { notePageHref } from '../scripts/md-render.js';
+
+    const staticIndex = JSON.parse(document.getElementById('search-data')!.textContent!);
+    // 連結目標用 token 提示同步決定；真正權限在 /note
+    const { mount, getQueryFromUrl, setIndex, setAuthed } = createWikiSearch(staticIndex, {
+      authed: hasSessionHint(),
+    });
+
+    const input = document.querySelector('input[name="q"]') as HTMLInputElement;
+    const form = input?.closest('form');
+    const resultsEl = document.getElementById('search-results')!;
+    const emptyEl = document.getElementById('search-empty')!;
+    const metaEl = document.getElementById('search-meta')!;
+
+    const { runSearch } = mount({ input, form, resultsEl, emptyEl, metaEl, syncUrl: true });
+
+    function pageBase() {
+      return document.documentElement.dataset.base || '/WikiNB-KCIS/';
+    }
+
+    function mergeLive(staticPages, livePages) {
+      const bySlug = new Map();
+      for (const p of staticPages || []) {
+        bySlug.set(p.slug, { ...p, live: false, html: '', bodyText: p.bodyText || '' });
+      }
+      for (const p of livePages || []) {
+        const noteSlug = p.noteSlug || String(p.slug || '').split('/').pop();
+        const href = notePageHref({
+          teacherId: p.teacherId,
+          subjectId: p.subjectId,
+          slug: noteSlug,
+          base: pageBase(),
+        });
+        bySlug.set(p.slug, {
+          ...p,
+          noteSlug,
+          live: true,
+          href,
+          html: '',
+          bodyText: p.bodyText || p.title || '',
+        });
+      }
+      return [...bySlug.values()].sort((a, b) =>
+        String(a.title || '').localeCompare(String(b.title || ''), 'zh-Hant'),
+      );
+    }
+
+    async function loadLiveCatalog(user) {
+      let live = [];
+      try {
+        const cat = await fetchWikiCatalog();
+        live = cat.files || [];
+      } catch {
+        /* Auth 離線：維持靜態目錄即可 */
+      }
+
+      if (isTeacherUser(user)) {
+        try {
+          const mine = await listAllWikiFiles();
+          const teacherId = mine.teacherId || user.teacherId;
+          for (const f of mine.files || []) {
+            live.push({
+              slug: `teachers/${teacherId}/${f.subjectId}/${f.slug}`,
+              title: f.title || f.slug,
+              description: '',
+              teacher: user.nickname || teacherId,
+              teacherId,
+              subject: f.subjectName || f.subjectId,
+              subjectEn: f.subjectNameEn || f.subjectName || f.subjectId,
+              subjectId: f.subjectId,
+              noteSlug: f.slug,
+              keywords: [user.nickname, f.subjectName].filter(Boolean),
+              keywordsEn: [user.nickname, f.subjectNameEn || f.subjectName].filter(Boolean),
+              tags: [],
+              date: '',
+              html: '',
+              bodyText: f.title || f.slug,
+              live: true,
+            });
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (!live.length) return;
+      setIndex(mergeLive(staticIndex, live));
+      runSearch();
+      if (metaEl && !String(input?.value || '').trim()) {
+        metaEl.textContent = `${metaEl.textContent || ''} · live`;
+      }
+    }
+
+    async function initAuthAndCatalog() {
+      // 無 token 提示：訪客模式，不打 Auth（避免卡在確認登入）
+      if (!hasSessionHint()) {
+        setAuthed(false);
+        runSearch();
+        return;
+      }
+      const session = await requireLogin({ timeoutMs: 3500 });
+      if (!session.authenticated) {
+        setAuthed(false);
+        runSearch();
+        return;
+      }
+      setAuthed(true);
+      runSearch();
+      await loadLiveCatalog(session.user);
+    }
+
+    const q = getQueryFromUrl();
+    if (q && input) input.value = q;
+    runSearch();
+    initAuthAndCatalog();
+
+    document.addEventListener('wikinb:locale-change', () => runSearch());
+    document.addEventListener('wikinb:auth-change', (ev) => {
+      const loggedIn = Boolean(ev.detail?.loggedIn);
+      setAuthed(loggedIn);
+      runSearch();
+    });
+  </script>
+
+  <script id="search-data" type="application/json" set:html={JSON.stringify(searchIndex)} />
+</BaseLayout>
+
+<style>
+  #search-results > :not([hidden]) ~ :not([hidden]) {
+    border-color: rgba(27, 79, 156, 0.1);
+  }
+
+  .wiki-scroll {
+    max-height: min(75vh, 900px);
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+
+  .wiki-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .wiki-scroll::-webkit-scrollbar-thumb {
+    background: rgba(27, 79, 156, 0.28);
+    border-radius: 9999px;
+  }
+
+  .wiki-title-link:hover {
+    text-decoration: underline;
+    text-decoration-color: rgba(107, 61, 154, 0.4);
+    text-underline-offset: 4px;
+  }
+</style>

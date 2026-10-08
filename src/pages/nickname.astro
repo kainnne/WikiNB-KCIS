@@ -37,6 +37,7 @@ const base = import.meta.env.BASE_URL;
 
 <script>
   import { displayUserName, fetchMe, updateMyNickname } from '../scripts/auth-client.js';
+  import { t } from '../scripts/i18n.js';
 
   function pageBase() {
     return document.documentElement.dataset.base || '/WikiNB-KCIS/';
@@ -79,12 +80,10 @@ const base = import.meta.env.BASE_URL;
     const nickname = input?.value?.trim() || '';
     try {
       await updateMyNickname(nickname);
-      showOk('Saved');
-      setTimeout(() => {
-        window.location.href = pageBase();
-      }, 600);
+      showOk(t('login.saved'));
+      window.dispatchEvent(new Event('kcis:session'));
     } catch (err) {
-      showErr(err.message || 'Could not update display name');
+      showErr(err.message || t('login.nicknameUpdateFailed'));
     }
   });
 

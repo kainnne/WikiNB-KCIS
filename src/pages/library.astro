@@ -25,7 +25,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   let categories=[],files=[],role='',category='',current=null,busy=false,authenticated=false;
   const base=getAuthUrl();
   const trial=import.meta.env.PUBLIC_TRIAL_URL;
-  if(trial&&!['localhost','127.0.0.1'].includes(location.hostname)&&new URL(trial).origin!==location.origin)location.replace(new URL('library/'+location.search+location.hash,trial).href);
+  
   const portal=['localhost','127.0.0.1'].includes(location.hostname)?`http://${location.hostname}:3000/`:import.meta.env.PUBLIC_PORTAL_URL||'https://ai-tools.kcis.kainnne.com/';
   const loginUrl=new URL(portal);loginUrl.searchParams.set('signin','1');loginUrl.searchParams.set('returnTo',location.href);
   el('library-login').setAttribute('href',loginUrl.href);
@@ -61,6 +61,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       if(accountLink){accountLink.textContent=session.user.nickname||session.user.name;accountLink.removeAttribute('data-i18n');const accountUrl=new URL(portal);accountUrl.searchParams.set('account','1');accountUrl.searchParams.set('returnTo',location.href);accountLink.href=accountUrl.href;}render();
     }catch(error){authenticated=false;files=[];current=null;el('library-content').hidden=true;el('library-gate').hidden=false;el('library-upload').hidden=true;el('library-answer').textContent='';el('library-sources').replaceChildren();el('library-markdown').textContent='';if(accountLink){accountLink.setAttribute('data-i18n','nav.login');accountLink.textContent=t('nav.login');accountLink.href=loginUrl.href;}throw error;}
   }
+  window.addEventListener('kcis:account-updated',()=>refreshAccess().catch(()=>{}));
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!busy)perform(refreshAccess);});
   window.addEventListener('pageshow',()=>{if(!busy)perform(refreshAccess);});
   perform(refreshAccess);
