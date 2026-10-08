@@ -16,7 +16,7 @@ export async function mountSchoolAccount({onChange=()=>{}}={}) {
   function finishLogin(){
     const next=new URLSearchParams(location.search).get('next');
     if(/\/login(?:\/|$)/.test(location.pathname)&&next){try{const url=new URL(next,location.origin);if(url.origin===location.origin&&!url.username&&!url.password){location.assign(url.href);return;}}catch{}}
-    location.reload();
+    if(!/\/login(?:\/|$)/.test(location.pathname))location.reload();
   }
   function render() {
     const account=view==='account',logout=view==='logout',nickname=account||step==='nickname';
@@ -27,7 +27,7 @@ export async function mountSchoolAccount({onChange=()=>{}}={}) {
     el('school-account-submit').textContent=busy?tr('處理中…','Please wait…'):logout?tr('登出','Sign out'):account?tr('儲存','Save'):step==='email'?tr('寄送驗證碼','Send code'):tr('確認','Continue');
     el('school-account-submit').disabled=busy;el('school-account-close').disabled=busy;el('school-account-cancel').hidden=!logout;el('school-account-cancel').textContent=tr('取消','Cancel');el('school-account-cancel').disabled=busy;
   }
-  async function open(mode){el('school-account-error').textContent='';el('school-account-notice').textContent='';try{await refresh();view=user?mode:'login';step='email';el('school-nickname').value=user?.nickname||user?.name||'';render();if(!dialog.open)dialog.showModal();el(view==='account'?'school-nickname':'school-email').focus();}catch(e){el('school-account-notice').textContent=e.message;}}
+  async function open(mode){el('school-account-error').textContent='';el('school-account-notice').textContent='';try{await refresh();if(user&&mode==='login'&&/\/login(?:\/|$)/.test(location.pathname)&&new URLSearchParams(location.search).get('next')){finishLogin();return;}view=user?(mode==='logout'?'logout':'account'):'login';step='email';el('school-nickname').value=user?.nickname||user?.name||'';render();if(!dialog.open)dialog.showModal();el(view==='account'?'school-nickname':'school-email').focus();}catch(e){el('school-account-notice').textContent=e.message;}}
   const close=()=>{if(!busy)dialog.close();};
   el('school-account-close').onclick=close;dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});el('school-account-cancel').onclick=()=>{view='account';render();};
   for(const id of ['nav-login','nav-mobile-login','library-login'])el(id)?.addEventListener('click',e=>{e.preventDefault();void open('login');});

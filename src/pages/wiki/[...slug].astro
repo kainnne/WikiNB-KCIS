@@ -46,7 +46,7 @@ const loginPath = `${base}login?next=${encodeURIComponent(notePath)}`;
   // 同步判斷：有 token 提示 → note；否則 → login。真正權限在 /note。
   let hasHint = false;
   try {
-    hasHint = Boolean(localStorage.getItem('wikinb_kcis_token'));
+    hasHint = Boolean(localStorage.getItem('wikinb_kcis_token')||localStorage.getItem('wikinb_kcis_signed_in'));
   } catch {
     hasHint = false;
   }

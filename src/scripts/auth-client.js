@@ -60,11 +60,12 @@ function setStoredToken(token) {
 
 /** 同步提示：僅有 localStorage token。不可當成資安依據，只用來決定連到 login 還是 note。 */
 export function hasSessionHint() {
-  return Boolean(getStoredToken());
+  try { return Boolean(getStoredToken() || localStorage.getItem('wikinb_kcis_signed_in')); } catch { return false; }
 }
 
 export function clearSessionHint() {
   setStoredToken('');
+  try { localStorage.removeItem('wikinb_kcis_signed_in'); } catch {}
   if (typeof document !== 'undefined') {
     document.dispatchEvent(
       new CustomEvent('wikinb:auth-change', {
@@ -312,6 +313,7 @@ export async function fetchMe(options = {}) {
   try {
     const shared = await withTimeout(authFetch('/api/auth/shared-session'), timeoutMs, 'auth-me-timeout');
     const data = { ...shared, authenticated: Boolean(shared.user) };
+    try { if(data.authenticated)localStorage.setItem('wikinb_kcis_signed_in','1'); } catch {}
     if (!data?.authenticated) {
       clearSessionHint();
       return { ok: false, authenticated: false };
@@ -451,7 +453,10 @@ export async function updateMyNickname(nickname) {
     method: 'PATCH',
     body: JSON.stringify({ nickname }),
   });
-  return rememberSessionFrom(data);
+  clearSessionHint();
+  await fetchMe();
+  window.dispatchEvent(new Event('kcis:session'));
+  return data;
 }
 
 export async function logout() {
