@@ -28,19 +28,8 @@ function getAuthBase() {
     cfg.productionUrl || import.meta.env.PUBLIC_AUTH_PRODUCTION_URL || '',
   ).replace(/\/$/, '');
 
-  if (typeof location !== 'undefined') {
-    const onPages = location.hostname.endsWith('github.io');
-    if (onPages) {
-      // 只有填了雲端／HTTPS 後端才走 production；否則不要撞舊 Tunnel
-      if (production) return production;
-      return local;
-    }
-    if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
-      return local;
-    }
-    if (production) return production;
-  }
-  return local;
+  if(typeof location !== 'undefined' && ['localhost','127.0.0.1'].includes(location.hostname)) return local;
+  return /^https:\/\//i.test(production) ? production : '';
 }
 
 export function getAuthUrl() {
@@ -99,6 +88,7 @@ function withTimeout(promise, ms, label = 'timeout') {
 }
 
 async function authFetch(path, options = {}) {
+  if(!getAuthBase()) throw new Error(t('library.disconnected'));
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
@@ -119,9 +109,9 @@ async function authFetch(path, options = {}) {
     let message = data.error || data.message;
     if (!message) {
       if (res.status === 404) {
-        message = 'Auth API 找不到此功能，請重新啟動本機 npm run auth';
+        message = t('auth.apiNotFound');
       } else {
-        message = `連線失敗（HTTP ${res.status}）`;
+        message = t('auth.connectionFailed', { status: res.status });
       }
     }
     const err = new Error(message);
@@ -178,6 +168,10 @@ export async function diagnoseAuthConnection() {
   const onLocal =
     typeof location !== 'undefined' &&
     (location.hostname === '127.0.0.1' || location.hostname === 'localhost');
+  if(!onLocal) {
+    if(!getAuthBase())return {online:false,reason:'not-configured',title:t('library.disconnected'),message:t('library.disconnected'),commands:[]};
+    try { const health=await authFetch('/api/health');return {online:true,...health,commands:[]}; } catch { return {online:false,title:t('library.failed'),message:t('library.failed'),commands:[]}; }
+  }
   const cmds = hostCommands();
   const production = String(readAuthConfig().productionUrl || '').trim();
   const looksLikeTunnel =
@@ -440,6 +434,14 @@ export async function loginWithPassword(email, password) {
   return rememberSessionFrom(data);
 }
 
+export async function loginStudent(nickname, password) {
+  const data = await authFetch('/api/auth/student-login', {
+    method: 'POST',
+    body: JSON.stringify({ nickname, password }),
+  });
+  return rememberSessionFrom(data);
+}
+
 export async function updateMyNickname(nickname) {
   const data = await authFetch('/api/auth/nickname', {
     method: 'PATCH',
@@ -491,7 +493,7 @@ export async function codexChatStream(message, onEvent = () => {}, options = {})
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || data.detail || `HTTP ${res.status}`);
   }
-  if (!res.body) throw new Error('瀏覽器不支援串流');
+  if (!res.body) throw new Error(t('auth.streamUnsupported'));
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -523,14 +525,14 @@ export async function codexChatStream(message, onEvent = () => {}, options = {})
     }
   } catch (err) {
     if (err?.name === 'AbortError') {
-      return { type: 'done', ok: true, stopped: true, answer: '（已停止）' };
+      return { type: 'done', ok: true, stopped: true, answer: t('gemini.stopped') };
     }
     throw err;
   }
 
-  if (!finalPayload) throw new Error('串流中斷');
+  if (!finalPayload) throw new Error(t('auth.streamInterrupted'));
   if (finalPayload.type === 'error' && !finalPayload.answer) {
-    throw new Error(finalPayload.error || finalPayload.detail || '執行失敗');
+    throw new Error(finalPayload.error || finalPayload.detail || t('gemini.runFailed'));
   }
   return finalPayload;
 }
@@ -552,6 +554,90 @@ export async function uploadWikiImage({ filename, dataBase64, subjectId, teacher
     method: 'POST',
     body: JSON.stringify({ filename, dataBase64, subjectId, teacherId }),
   });
+}
+
+export async function importDocument({ filename, mimeType, dataBase64, teacherId, subjectId, visibility, slug, keywords = [] }) {
+  return authFetch('/api/files/import', {
+    method: 'POST',
+    body: JSON.stringify({ filename, mimeType, dataBase64, teacherId, subjectId, visibility, slug, keywords }),
+  });
+}
+
+export async function listUploadedFiles({ teacherId } = {}) {
+  const query = teacherId ? `?teacherId=${encodeURIComponent(teacherId)}` : '';
+  return authFetch(`/api/files${query}`);
+}
+
+export async function fetchStudentClasses() {
+  return authFetch('/api/student/classes');
+}
+
+export async function listClassStudents({ teacherId } = {}) {
+  const query = teacherId ? `?teacherId=${encodeURIComponent(teacherId)}` : '';
+  return authFetch(`/api/students${query}`);
+}
+
+export async function createStudentAccess({ studentNumber, nickname, teacherId }) {
+  return authFetch('/api/students', {
+    method: 'POST',
+    body: JSON.stringify({ studentNumber, nickname, teacherId }),
+  });
+}
+
+export async function resetStudentAccess({ studentId, teacherId }) {
+  return authFetch(`/api/students/${encodeURIComponent(studentId)}/reset-password`, {
+    method: 'POST',
+    body: JSON.stringify({ teacherId }),
+  });
+}
+
+export async function revokeStudentAccess({ studentId, teacherId }) {
+  return authFetch(`/api/students/${encodeURIComponent(studentId)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ teacherId }),
+  });
+}
+
+async function fetchUploadedFileBlob(fileId) {
+  const headers = {};
+  const tok = getStoredToken();
+  if (tok) headers.Authorization = `Bearer ${tok}`;
+  const res = await fetch(`${getAuthBase()}/api/files/${encodeURIComponent(fileId)}/download`, {
+    credentials: 'include',
+    headers,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || t('auth.downloadFailed', { status: res.status }));
+  }
+  return res.blob();
+}
+
+export async function openUploadedFile(fileId) {
+  const popup = window.open('about:blank', '_blank');
+  if (!popup) throw new Error(t('note.popupBlocked'));
+  try {
+    popup.opener = null;
+    popup.document.title = t('note.opening');
+    popup.document.body.textContent = t('note.opening');
+    const blob = await fetchUploadedFileBlob(fileId);
+    const url = URL.createObjectURL(blob);
+    popup.location.replace(url);
+    setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
+  } catch (error) {
+    popup.close();
+    throw error;
+  }
+}
+
+export async function downloadUploadedFile(fileId, filename = 'download') {
+  const blob = await fetchUploadedFileBlob(fileId);
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export async function listWikiFiles({ subjectId, teacherId } = {}) {
@@ -612,7 +698,7 @@ export function displayUserName(user) {
 
 export function helloLabel(user) {
   const name = displayUserName(user);
-  return name ? `Hello! ${name}` : '';
+  return name ? t('nav.hello', { name }) : '';
 }
 
 export async function isLoggedIn() {
@@ -629,6 +715,18 @@ export async function mountNavAuth() {
   const navAi = document.getElementById('nav-ai');
   const navRoleCta = document.getElementById('nav-role-cta');
   const navRoleCtaLabel = navRoleCta?.querySelector('.nav-addnote-label');
+  const editNicknameLink = document.getElementById('nav-edit-nick');
+  const mobileWrap = document.getElementById('nav-mobile-wrap');
+  const mobileToggle = document.getElementById('nav-mobile-toggle');
+  const mobileMenu = document.getElementById('nav-mobile-menu');
+  const mobileAi = document.getElementById('nav-mobile-ai');
+  const mobileRoleCta = document.getElementById('nav-mobile-role-cta');
+  const mobileRoleCtaLabel = mobileRoleCta?.querySelector('span');
+  const mobileLogin = document.getElementById('nav-mobile-login');
+  const mobileAccount = document.getElementById('nav-mobile-account');
+  const mobileUser = document.getElementById('nav-mobile-user');
+  const mobileEditNickname = document.getElementById('nav-mobile-edit-nick');
+  const mobileLogout = document.getElementById('nav-mobile-logout');
 
   const closeMenu = () => {
     userMenu?.classList.add('hidden');
@@ -638,6 +736,33 @@ export async function mountNavAuth() {
   const openMenu = () => {
     userMenu?.classList.remove('hidden');
     userLabel?.setAttribute('aria-expanded', 'true');
+  };
+
+  const closeMobileMenu = () => {
+    mobileMenu?.classList.add('hidden');
+    mobileToggle?.setAttribute('aria-expanded', 'false');
+  };
+
+  const openMobileMenu = () => {
+    mobileMenu?.classList.remove('hidden');
+    mobileToggle?.setAttribute('aria-expanded', 'true');
+  };
+
+  const setRoleCta = ({ link, label, teacher, student, classroomStudent }) => {
+    const showCta = teacher || student;
+    link?.classList.toggle('hidden', !showCta);
+    if (!link || !label || !showCta) return;
+    if (teacher) {
+      link.href = link.dataset.teacherHref || link.href;
+      label.setAttribute('data-i18n', 'home.myNotes');
+      label.textContent = t('home.myNotes');
+    } else {
+      link.href = classroomStudent
+        ? link.dataset.classroomHref || link.href
+        : link.dataset.studentHref || link.href;
+      label.setAttribute('data-i18n', classroomStudent ? 'student.nav' : 'nav.gemini');
+      label.textContent = t(classroomStudent ? 'student.nav' : 'nav.gemini');
+    }
   };
 
   const update = async () => {
@@ -650,6 +775,7 @@ export async function mountNavAuth() {
     const loggedIn = Boolean(me.authenticated && me.user);
     const teacher = loggedIn && isTeacherUser(me.user);
     const student = loggedIn && !teacher;
+    const classroomStudent = student && me.user?.authType === 'student-code';
     loginLink?.classList.toggle('hidden', loggedIn);
     // 訪客：AI應用導航；登入後（老師／學生）隱藏
     navAi?.classList.toggle('hidden', loggedIn);
@@ -669,17 +795,32 @@ export async function mountNavAuth() {
           navRoleCtaLabel.textContent = t('home.myNotes');
         }
       } else if (student) {
-        navRoleCta.href = navRoleCta.dataset.studentHref || navRoleCta.href;
+        navRoleCta.href = classroomStudent
+          ? navRoleCta.dataset.classroomHref || navRoleCta.href
+          : navRoleCta.dataset.studentHref || navRoleCta.href;
         if (navRoleCtaLabel) {
-          navRoleCtaLabel.setAttribute('data-i18n', 'nav.gemini');
-          navRoleCtaLabel.textContent = t('nav.gemini');
+          navRoleCtaLabel.setAttribute('data-i18n', classroomStudent ? 'student.nav' : 'nav.gemini');
+          navRoleCtaLabel.textContent = t(classroomStudent ? 'student.nav' : 'nav.gemini');
         }
       }
     }
+    setRoleCta({
+      link: mobileRoleCta,
+      label: mobileRoleCtaLabel,
+      teacher,
+      student,
+      classroomStudent,
+    });
+    mobileLogin?.classList.toggle('hidden', loggedIn);
+    mobileAi?.classList.toggle('hidden', loggedIn);
+    mobileAccount?.classList.toggle('hidden', !loggedIn);
+    mobileEditNickname?.classList.toggle('hidden', classroomStudent);
+    if (mobileUser) mobileUser.textContent = loggedIn ? helloLabel(me.user) : '';
+    editNicknameLink?.classList.toggle('hidden', classroomStudent);
     if (userWrap && userLabel) {
       if (loggedIn) {
         userLabel.textContent = helloLabel(me.user);
-        userLabel.title = 'Account menu';
+        userLabel.title = t('nav.accountMenu');
         userWrap.classList.remove('hidden');
       } else {
         userWrap.classList.add('hidden');
@@ -701,22 +842,43 @@ export async function mountNavAuth() {
     else closeMenu();
   });
 
+  mobileToggle?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!mobileMenu) return;
+    if (mobileMenu.classList.contains('hidden')) openMobileMenu();
+    else closeMobileMenu();
+  });
+
+  mobileMenu?.querySelectorAll('a').forEach((link) => {
+    link.addEventListener('click', closeMobileMenu);
+  });
+
   document.addEventListener('click', (e) => {
     if (!userWrap?.contains(e.target)) closeMenu();
+    if (!mobileWrap?.contains(e.target)) closeMobileMenu();
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeMenu();
+    if (e.key === 'Escape') {
+      closeMenu();
+      closeMobileMenu();
+    }
   });
 
-  logoutBtn?.addEventListener('click', async (e) => {
+  const handleLogout = async (e) => {
     e.preventDefault();
     closeMenu();
+    closeMobileMenu();
     await logout();
     await update();
     const base = document.documentElement.dataset.base || '/';
     window.location.href = `${base}login?logged_out=1`;
-  });
+  };
+
+  logoutBtn?.addEventListener('click', handleLogout);
+  mobileLogout?.addEventListener('click', handleLogout);
+  document.addEventListener('wikinb:locale-change', update);
 
   await update();
 }

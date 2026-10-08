@@ -1,5 +1,5 @@
 {
-  "enabled": true,
+  "enabled": false,
   "title": "WikiNB 功能暫停中",
   "message": "這項功能目前尚未開放，請稍後再回來。",
   "secondaryMessage": "The service is temporarily unavailable.",

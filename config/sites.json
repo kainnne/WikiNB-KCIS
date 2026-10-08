@@ -7,14 +7,14 @@
   },
   "auth": {
     "url": "http://127.0.0.1:8790",
-    "productionUrl": "https://poor-mainstream-prescription-burner.trycloudflare.com",
+    "productionUrl": "",
     "mode": "email-otp",
     "note": "本機測試登入：http://127.0.0.1:4322/WikiNB-KCIS/login（埠：網站 4322、Auth 8790）。個人 WikiNB 是另一專案（4321／8787）勿混用。診斷：./host/doctor-mac.sh；一鍵本機：./host/local-login-mac.sh；線上 github.io 需 Tunnel + productionUrl push。"
   },
   "sites": {
     "navigator": {
       "name": "康橋 AI 應用導航",
-      "url": "https://zx50416.github.io/KCIS_AI_website/",
+      "url": "https://ai-tools.kcis.kainnne.com/",
       "role": "AI／數位工具導航（姊妹站）"
     },
     "wikinbKcis": {
