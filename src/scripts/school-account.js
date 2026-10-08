@@ -11,7 +11,7 @@ export async function mountSchoolAccount({onChange=()=>{}}={}) {
     const response=await fetch(base+'/api/auth/'+path,{method:method||(body===undefined?'GET':'POST'),credentials:'include',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(path==='send-code'?75000:15000)});
     const data=await response.json();if(!response.ok)throw Object.assign(Error(data.error||tr('連線失敗','Connection failed')),{status:response.status});return data;
   }
-  async function refresh(){try{user=(await request('shared-session')).user;}catch(e){if([401,403].includes(e.status))user=null;else throw e;}return user;}
+  async function refresh(){try{user=(await request('shared-session')).user;try{if(user)localStorage.setItem('wikinb_kcis_signed_in','1');}catch{}}catch(e){if([401,403].includes(e.status))user=null;else throw e;}return user;}
   async function changed(){clearSessionHint();try{localStorage.setItem('kcis:auth-change',String(Date.now()));}catch{}window.dispatchEvent(new Event('kcis:session'));await onChange();window.dispatchEvent(new Event('kcis:account-updated'));}
   function finishLogin(){
     const next=new URLSearchParams(location.search).get('next');
