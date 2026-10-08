@@ -24,12 +24,16 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   const el=(id)=>document.getElementById(id);
   let categories=[],files=[],role='',category='',current=null,busy=false,authenticated=false;
   const base=getAuthUrl();
-  const portal=['localhost','127.0.0.1'].includes(location.hostname)?`http://${location.hostname}:3000/`:'https://ai-tools.kcis.kainnne.com/';
-  el('library-login').setAttribute('href',portal);
+  const trial=import.meta.env.PUBLIC_TRIAL_URL;
+  if(trial&&!['localhost','127.0.0.1'].includes(location.hostname)&&new URL(trial).origin!==location.origin)location.replace(new URL('library/'+location.search+location.hash,trial).href);
+  const portal=['localhost','127.0.0.1'].includes(location.hostname)?`http://${location.hostname}:3000/`:import.meta.env.PUBLIC_PORTAL_URL||'https://ai-tools.kcis.kainnne.com/';
+  const loginUrl=new URL(portal);loginUrl.searchParams.set('signin','1');loginUrl.searchParams.set('returnTo',location.href);
+  el('library-login').setAttribute('href',loginUrl.href);
+  const accountLink=el('school-account');if(accountLink)accountLink.href=loginUrl.href;
   async function request(endpoint,body){
     if(!base)throw Error(t('library.disconnected'));
-    const token=localStorage.getItem('wikinb_kcis_token')||'';
-    const response=await fetch(base+'/api'+endpoint,{method:body===undefined?'GET':'POST',credentials:'include',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(endpoint.includes('chat')?240000:120000)});
+
+    const response=await fetch(base+'/api'+endpoint,{method:body===undefined?'GET':'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(endpoint.includes('chat')?240000:120000)});
     if(!response.ok){const data=await response.json().catch(()=>({}));throw Object.assign(new Error(data.error||t('library.failed')),{status:response.status});}return response.json();
   }
   function status(text=''){el('library-status').textContent=text;}
@@ -45,12 +49,19 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   }
   async function openFile(id){current=await request('/library/files/'+id);el('library-files').hidden=true;el('library-reader').hidden=false;el('library-reader-title').textContent=current.filename;el('library-markdown').textContent=current.markdown||t('library.stored');}
   el('library-close').onclick=()=>{el('library-reader').hidden=true;el('library-files').hidden=false;current=null;};
-  el('library-download').onclick=()=>perform(async()=>{const token=localStorage.getItem('wikinb_kcis_token')||'';const response=await fetch(base+'/api/library/files/'+current.id+'/download',{credentials:'include',headers:token?{Authorization:'Bearer '+token}:{}});if(!response.ok)throw Error(t('library.failed'));const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download=current.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);});
+  el('library-download').onclick=()=>perform(async()=>{const response=await fetch(base+'/api/library/files/'+current.id+'/download',{credentials:'include',headers:{}});if(!response.ok)throw Error(t('library.failed'));const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download=current.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);});
   document.querySelectorAll('[data-role]').forEach(b=>b.onclick=()=>{role=b.dataset.role;document.querySelectorAll('[data-role]').forEach(item=>{item.classList.toggle('active',item===b);item.setAttribute('aria-pressed',String(item===b));});render();});
   el('library-query').oninput=render;
   el('library-upload').onclick=()=>el('library-file').click();
   el('library-file').onchange=()=>perform(async()=>{const file=el('library-file').files?.[0];if(!file)return;if(file.size>12*1024*1024)throw Error(t('library.size'));const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode(...bytes.slice(i,i+32768));await request('/library/upload',{filename:file.name,contentBase64:btoa(binary)});const data=await request('/library');files=data.files;el('library-file').value='';render();});
   el('library-ask').onsubmit=e=>{e.preventDefault();perform(async()=>{el('library-answer').textContent=t('library.loading');el('library-sources').replaceChildren();try{const result=await request('/library/chat',{message:el('library-question').value});el('library-answer').textContent=result.answer;for(const source of result.sources){const b=document.createElement('button');b.textContent=source.title;b.onclick=()=>perform(()=>openFile(source.id));el('library-sources').append(b);}}catch(e){el('library-answer').textContent='';throw e;}});};
   document.addEventListener('wikinb:locale-change',()=>{if(authenticated)render();});
-  perform(async()=>{await request('/auth/shared-session');const data=await request('/library');authenticated=true;categories=data.categories;files=data.files;el('library-gate').hidden=true;el('library-content').hidden=false;el('library-upload').hidden=false;render();});
+  async function refreshAccess(){
+    try{const session=await request('/auth/shared-session');const data=await request('/library');authenticated=true;categories=data.categories;files=data.files;el('library-gate').hidden=true;el('library-content').hidden=false;el('library-upload').hidden=false;
+      if(accountLink){accountLink.textContent=session.user.nickname||session.user.name;accountLink.removeAttribute('data-i18n');const accountUrl=new URL(portal);accountUrl.searchParams.set('account','1');accountUrl.searchParams.set('returnTo',location.href);accountLink.href=accountUrl.href;}render();
+    }catch(error){authenticated=false;files=[];current=null;el('library-content').hidden=true;el('library-gate').hidden=false;el('library-upload').hidden=true;el('library-answer').textContent='';el('library-sources').replaceChildren();el('library-markdown').textContent='';if(accountLink){accountLink.setAttribute('data-i18n','nav.login');accountLink.textContent=t('nav.login');accountLink.href=loginUrl.href;}throw error;}
+  }
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!busy)perform(refreshAccess);});
+  window.addEventListener('pageshow',()=>{if(!busy)perform(refreshAccess);});
+  perform(refreshAccess);
 </script>
