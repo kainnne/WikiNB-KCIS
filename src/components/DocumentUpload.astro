@@ -2,7 +2,7 @@
 const base = import.meta.env.BASE_URL;
 ---
 <section class="document-upload">
-  <header class="upload-heading"><h1 data-i18n="upload.title">Upload documents</h1><a href={`${base}library/`} class="kc-btn-ghost">School Library</a></header>
+  <header class="upload-heading"><h1 data-i18n="upload.title">Upload documents</h1><a href={`${base}library/`} class="kc-btn-ghost" data-i18n="library.title">School Library</a></header>
   <div id="upload-gate" class="kc-card" hidden><p data-i18n="upload.gate">Sign in with a teacher account to upload documents.</p><a href={`${base}login`} data-school-signin class="kc-btn-primary" data-i18n="nav.login">Sign in</a></div>
   <form id="document-upload-form" hidden>
     <button id="upload-dropzone" class="upload-dropzone" type="button">
