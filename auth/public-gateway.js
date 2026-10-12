@@ -9,7 +9,7 @@ const publicUrl=publicOrigin?new URL(publicOrigin):null;
 if(publicUrl&&(publicUrl.protocol!=='https:'||publicUrl.pathname!=='/'||publicUrl.search||publicUrl.hash||publicUrl.username||publicUrl.password))throw Error('Public origin must be an HTTPS origin.');
 const origins=(process.env.FRONTEND_ORIGINS||'https://ai-tools.kcis.kainnne.com,https://wikinb.kcis.kainnne.com').split(',').map(s=>s.trim());
 export function allowedLegacySchoolRoute(method,pathname){
- if(['GET','OPTIONS'].includes(method))return ['/api/wiki/catalog','/api/wiki/subjects','/api/wiki/list','/api/wiki/list-all','/api/wiki/read','/api/files','/api/codex/models'].includes(pathname)||/^\/api\/files\/[A-Za-z0-9_-]+\/download$/.test(pathname);
+ if(['GET','OPTIONS'].includes(method)&&(['/api/wiki/catalog','/api/wiki/subjects','/api/wiki/list','/api/wiki/list-all','/api/wiki/read','/api/files','/api/codex/models'].includes(pathname)||/^\/api\/files\/[A-Za-z0-9_-]+\/download$/.test(pathname)))return true;
  return ['POST','OPTIONS'].includes(method)&&['/api/wiki/upload','/api/wiki/upload-image','/api/wiki/rename','/api/files/import','/api/codex/chat','/api/codex/stop'].includes(pathname);
 }
 export function allowedSchoolRoute(method,pathname){

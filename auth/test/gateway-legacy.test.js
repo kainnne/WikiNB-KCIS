@@ -25,6 +25,10 @@ test('legacy school preview is opt-in, requires school session, and excludes des
     const authorized={Cookie:'synthetic-school-session',Origin:'https://school.example'};
     assert.equal((await fetch(base+'/api/wiki/catalog',{headers:authorized})).status,enabled?200:404);
     assert.equal((await fetch(base+'/api/codex/chat',{method:'POST',headers:authorized,body:'{}'})).status,enabled?200:404);
+    for(const path of ['/api/codex/chat','/api/codex/stop','/api/wiki/upload','/api/files/import']){
+     assert.equal((await fetch(base+path,{method:'OPTIONS',headers:{Origin:'https://school.example','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}})).status,enabled?200:404);
+     assert.equal((await fetch(base+path,{method:'POST',headers:{Origin:'https://school.example'},body:'{}'})).status,enabled?401:404);
+    }
     if(enabled)assert.equal((await fetch(base+'/api/wiki/catalog',{headers:{...authorized,Origin:'https://evil.example'}})).status,403);
     for(const path of ['/api/sync','/api/wiki/delete','/api/auth/set-password','/api/auth/student-login'])assert.equal((await fetch(base+path,{method:'POST',headers:authorized})).status,404);
    }finally{child.kill('SIGTERM');await new Promise(resolve=>child.once('exit',resolve));}
