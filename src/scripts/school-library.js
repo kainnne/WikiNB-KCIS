@@ -1,4 +1,4 @@
-import {getAuthUrl, fetchMe, isTeacherUser, listAllWikiFiles} from './auth-client.js';
+import {getAuthUrl, fetchMe, isTeacherUser} from './auth-client.js';
 import {markdownToHtml} from './md-render.js';
 import {t,getLocale,uiError} from './i18n.js';
 const el=id=>document.getElementById(id), mine=el('school-library').dataset.mine==='true';
@@ -49,15 +49,11 @@ el('library-ask')?.addEventListener('submit',event=>{event.preventDefault();void
   try{const data=await request('/chat',{message:el('library-question').value});renderMarkdown(el('library-answer'),data.answer);for(const source of data.sources){const button=document.createElement('button');button.type='button';button.textContent=source.title;button.onclick=()=>void perform(()=>openFile(source.id));el('library-sources').append(button);}}
   catch(error){el('library-answer').textContent='';throw error;}
 });});
-async function earlierNotes(user){
-  if(!mine||!isTeacherUser(user))return;
-  try{const data=await listAllWikiFiles({teacherId:user.teacherId});const list=el('legacy-notes-list');list.replaceChildren();for(const note of data.files||[]){const link=document.createElement('a');link.className='library-file';link.textContent=note.title||note.slug;link.href=pageBase+'note?'+new URLSearchParams({teacherId:note.teacherId||user.teacherId,subjectId:note.subjectId,slug:note.slug});list.append(link);}el('legacy-notes').hidden=!list.children.length;}catch{status(t('library.earlierFailed'));}
-}
 async function access(){
   const session=await fetchMe();el('library-upload').hidden=!(session.authenticated&&isTeacherUser(session.user));
   if(!session.authenticated){el('library-gate').hidden=false;return;}
   const data=await request(mine?'?mine=1':'');categories=data.categories;files=data.files;
-  el('library-gate').hidden=true;el('library-content').hidden=false;render();await earlierNotes(session.user);
+  el('library-gate').hidden=true;el('library-content').hidden=false;render();
   const selected=new URLSearchParams(location.search).get('file');if(selected)await openFile(selected);
 }
 void perform(access);
