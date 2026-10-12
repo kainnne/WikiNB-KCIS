@@ -39,18 +39,15 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
     import {schoolDocumentsIndex} from '../lib/wiki-documents.js';
     import {readSchoolDocuments} from '../scripts/shared-documents.js';
     import {
-      fetchWikiCatalog,
       fetchMe,
       hasSessionHint,
-      isTeacherUser,
-      listAllWikiFiles,
       requireLogin,
     } from '../scripts/auth-client.js';
-    import { notePageHref } from '../scripts/md-render.js';
+    import {t} from '../scripts/i18n.js';
 
     const staticIndex = JSON.parse(document.getElementById('search-data')!.textContent!);
     // 連結目標用 token 提示同步決定；真正權限在 /note
-    const { mount, getQueryFromUrl, setIndex, setAuthed } = createWikiSearch(staticIndex, {
+    const { mount, getQueryFromUrl, setIndex, setAuthed, setStatus } = createWikiSearch(staticIndex, {
       authed: hasSessionHint(),
     });
 
@@ -66,34 +63,6 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
       return document.documentElement.dataset.base || '/WikiNB-KCIS/';
     }
 
-    function mergeLive(staticPages, livePages) {
-      const bySlug = new Map();
-      for (const p of staticPages || []) {
-        bySlug.set(p.slug, { ...p, live: false, html: '', bodyText: p.bodyText || '' });
-      }
-      for (const p of livePages || []) {
-        if(p.href&&p.slug.startsWith('documents/')){bySlug.set(p.slug,p);continue;}
-        const noteSlug = p.noteSlug || String(p.slug || '').split('/').pop();
-        const href = notePageHref({
-          teacherId: p.teacherId,
-          subjectId: p.subjectId,
-          slug: noteSlug,
-          base: pageBase(),
-        });
-        bySlug.set(p.slug, {
-          ...p,
-          noteSlug,
-          live: true,
-          href,
-          html: '',
-          bodyText: p.bodyText || p.title || '',
-        });
-      }
-      return [...bySlug.values()].sort((a, b) =>
-        String(a.title || '').localeCompare(String(b.title || ''), 'zh-Hant'),
-      );
-    }
-
     let catalogKey='',catalogGeneration=0,catalogLoading=null;
     function loadLiveCatalog(user) {
       const key=[user.email,user.role,user.updatedAt].join('|');
@@ -102,66 +71,36 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
       catalogLoading=loadCatalog(user,generation);return catalogLoading;
     }
     async function loadCatalog(user,generation) {
-      let live = [];
-      const school=await readSchoolDocuments().catch(()=>null);
-      if(school)live.push(...schoolDocumentsIndex(school.files,school.categories,pageBase()));
       try {
-        const cat = await fetchWikiCatalog();
-        live.push(...(cat.files||[]));
-      } catch {
-        /* Auth 離線：維持靜態目錄即可 */
+        setStatus(t('library.loading'));runSearch();
+        const school=await readSchoolDocuments();
+        if(generation!==catalogGeneration)return;
+        setIndex(schoolDocumentsIndex(school.files,school.categories,pageBase()));
+        setStatus('');
+        runSearch();
+      } catch(error) {
+        if(generation!==catalogGeneration)return;
+        catalogKey='';
+        setStatus(t('library.failed'));runSearch();
       }
 
-      if (isTeacherUser(user)) {
-        try {
-          const mine = await listAllWikiFiles();
-          const teacherId = mine.teacherId || user.teacherId;
-          for (const f of mine.files || []) {
-            live.push({
-              slug: `teachers/${teacherId}/${f.subjectId}/${f.slug}`,
-              title: f.title || f.slug,
-              description: '',
-              teacher: user.nickname || teacherId,
-              teacherId,
-              subject: f.subjectName || f.subjectId,
-              subjectEn: f.subjectNameEn || f.subjectName || f.subjectId,
-              subjectId: f.subjectId,
-              noteSlug: f.slug,
-              keywords: [user.nickname, f.subjectName].filter(Boolean),
-              keywordsEn: [user.nickname, f.subjectNameEn || f.subjectName].filter(Boolean),
-              tags: [],
-              date: '',
-              html: '',
-              bodyText: f.title || f.slug,
-              live: true,
-            });
-          }
-        } catch {
-          /* ignore */
-        }
-      }
-
-      if(generation!==catalogGeneration)return;
-      setIndex(mergeLive(staticIndex, live));
-      runSearch();
     }
 
     async function initAuthAndCatalog() {
       const session = await fetchMe();
       if (!session.authenticated) {
-        catalogGeneration++;catalogKey='';setIndex(staticIndex);
+        catalogGeneration++;catalogKey='';setIndex(staticIndex);setStatus('');
         setAuthed(false);
         runSearch();
         return;
       }
       setAuthed(true);
-      runSearch();
       await loadLiveCatalog(session.user);
     }
 
     const q = getQueryFromUrl();
     if (q && input) input.value = q;
-    runSearch();
+    setStatus(t('library.loading'));runSearch();
     initAuthAndCatalog();
 
     document.addEventListener('wikinb:locale-change', () => runSearch());
@@ -169,8 +108,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
       const loggedIn = Boolean(ev.detail?.loggedIn);
       setAuthed(loggedIn);
       if(loggedIn)void loadLiveCatalog(ev.detail.user);
-      else{catalogGeneration++;catalogKey='';setIndex(staticIndex);}
-      runSearch();
+      else{catalogGeneration++;catalogKey='';setIndex(staticIndex);setStatus('');runSearch();}
     });
     window.addEventListener('kcis:account-updated',event=>{if(event.detail?.user)event.detail.waitUntil?.(loadLiveCatalog(event.detail.user));});
   </script>

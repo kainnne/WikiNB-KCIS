@@ -10,6 +10,8 @@ import { hasSessionHint } from './auth-client.js';
 
 export function createWikiSearch(initialIndex, options = {}) {
   let searchIndex = Array.isArray(initialIndex) ? initialIndex : [];
+  let pendingStatus = '';
+  const setStatus = (value) => { pendingStatus = String(value || ''); };
   /** 與 hasSessionHint 對齊；僅影響連結目標，不代表伺服器已驗證 */
   let authed = options.authed != null ? Boolean(options.authed) : hasSessionHint();
 
@@ -187,6 +189,12 @@ export function createWikiSearch(initialIndex, options = {}) {
   };
 
   const renderResults = ({ query, resultsEl, emptyEl, metaEl }) => {
+    if(pendingStatus){
+      if(metaEl)metaEl.textContent=pendingStatus;
+      resultsEl.classList.add('hidden');
+      emptyEl?.classList.add('hidden');
+      return;
+    }
     // 每次重繪前再讀一次 hint，避免登入／登出後連結過期
     authed = hasSessionHint() || authed;
     const q = query.trim();
@@ -248,5 +256,5 @@ export function createWikiSearch(initialIndex, options = {}) {
     return { runSearch, getQueryFromUrl };
   };
 
-  return { mount, renderResults, getQueryFromUrl, filterPages, setIndex, setAuthed };
+  return { mount, renderResults, getQueryFromUrl, filterPages, setIndex, setAuthed, setStatus };
 }

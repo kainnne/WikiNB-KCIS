@@ -1,12 +1,9 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import HomeSearch from '../components/HomeSearch.astro';
-import WikiCard from '../components/WikiCard.astro';
-import { getAllWikiPages } from '../lib/wiki';
+import RecentDocuments from '../components/RecentDocuments.astro';
 import sites from '../../config/sites.json';
 
-const pages = getAllWikiPages();
-const recent = pages.slice(0, 6);
 ---
 
 <BaseLayout title="WikiNB" description={sites.brand.tagline}>
@@ -16,29 +13,7 @@ const recent = pages.slice(0, 6);
     <div class="home-search-wrap"><HomeSearch /></div>
   </section>
 
-  {recent.length > 0 && (
-    <section class="animate-fadeIn">
-      <h2 class="mb-6 font-display text-2xl font-bold text-kc-blue-deep">
-
-        <span data-i18n="home.recent">Recently updated</span>
-      </h2>
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {recent.map((page) => (
-          <WikiCard
-            slug={page.slug}
-            title={page.title}
-            description={page.description}
-            teacher={page.teacher}
-            subject={page.subject}
-            subjectEn={page.subjectEn}
-            date={page.date}
-            teacherId={page.teacherId}
-            subjectId={page.subjectId}
-          />
-        ))}
-      </div>
-    </section>
-  )}
+  <RecentDocuments />
 </BaseLayout>
 
 <style>

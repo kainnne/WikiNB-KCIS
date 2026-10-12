@@ -431,5 +431,6 @@
   "library.searchable": "可搜尋",
   "library.article": "文章",
   "library.solution": "解決紀錄",
-  "library.earlierFailed": "無法讀取先前的筆記。"
+  "library.earlierFailed": "無法讀取先前的筆記。",
+  "library.allDocuments": "所有文件"
 }

@@ -433,5 +433,6 @@
   "library.searchable": "Searchable",
   "library.article": "Article",
   "library.solution": "Solution",
-  "library.earlierFailed": "Earlier notes could not be loaded."
+  "library.earlierFailed": "Earlier notes could not be loaded.",
+  "library.allDocuments": "All documents"
 }
