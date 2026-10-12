@@ -5,6 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import {createServer} from 'node:http';
+import {Readable} from 'node:stream';
+import {performance} from 'node:perf_hooks';
 import { createHmac, randomUUID } from 'node:crypto';
 import { libraryChat } from '../lib/library-agent.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -22,8 +25,8 @@ test('real forum scheduled delivery reaches authenticated KCIS library; retries,
  fs.writeFileSync(path.join(tmp,'empty.env'),'');
  const wrapper=path.join(qa,'qa-server.js');
  fs.writeFileSync(wrapper,"import http from 'node:http';const listen=http.Server.prototype.listen;http.Server.prototype.listen=function(...args){this.once('listening',()=>console.log('QA_PORT='+this.address().port));return listen.apply(this,args)};await import('./server.js');");
- const server=spawn(process.execPath,[wrapper],{env:{PATH:process.env.PATH,HOME:process.env.HOME,AUTH_ENV_FILE:path.join(tmp,'empty.env'),PORT:'0',HOST:'127.0.0.1',PROJECT_ROOT:tmp,LIBRARY_DATA_DIR:path.join(tmp,'library'),SESSION_SECRET:secret,WIKINB_INGEST_SECRET:ingest,DRIVE_ENABLED:'false'},stdio:['ignore','pipe','pipe']});
- let sql;
+ const server=spawn(process.execPath,[wrapper],{env:{PATH:process.env.PATH,HOME:process.env.HOME,AUTH_ENV_FILE:path.join(tmp,'empty.env'),PORT:'0',HOST:'127.0.0.1',PROJECT_ROOT:tmp,LIBRARY_DATA_DIR:path.join(tmp,'library'),SESSION_SECRET:secret,WIKINB_INGEST_SECRET:ingest,DRIVE_ENABLED:'false',FORUM_API_URL:'http://127.0.0.1:18909'},stdio:['ignore','pipe','pipe']});
+ let sql,profileServer;
  try{
  const port=await new Promise((resolve,reject)=>{let output='';const timer=setTimeout(()=>reject(Error('QA backend start timeout')),10000);server.stdout.on('data',chunk=>{output+=chunk;const match=output.match(/QA_PORT=(\d+)/);if(match){clearTimeout(timer);resolve(Number(match[1]));}});server.once('exit',code=>{clearTimeout(timer);reject(Error('QA backend exited '+code));});server.stderr.resume();});
  const base='http://127.0.0.1:'+port;
@@ -35,6 +38,7 @@ test('real forum scheduled delivery reaches authenticated KCIS library; retries,
  const env={DB:{prepare,async batch(statements){sql.exec('BEGIN');try{const values=[];for(const s of statements)values.push(await s.run());sql.exec('COMMIT');return values;}catch(e){sql.exec('ROLLBACK');throw e;}}},SESSION_SECRET:secret,ALLOWED_ORIGIN:'https://school.example.test',LOCAL_MODE:'1',WIKINB_API_URL:base,WIKINB_INGEST_SECRET:ingest};
  const worker=(await import(pathToFileURL(path.join(forumRoot,'src/worker.mjs')))).default;
  const {syncWikiNBSolutions}=await import(pathToFileURL(path.join(forumRoot,'src/solutions.mjs')));
+ profileServer=createServer(async(req,res)=>{const request=new Request('http://127.0.0.1:18909'+req.url,{method:req.method,headers:req.headers,...(!['GET','HEAD'].includes(req.method)?{body:Readable.toWeb(req),duplex:'half'}:{})});const response=await worker.fetch(request,env);res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));});await new Promise(resolve=>profileServer.listen(18909,'127.0.0.1',resolve));
  const call=async(route,body,token=teacherToken)=>worker.fetch(new Request('https://forum.example.test/api'+route,{method:'POST',headers:{Origin:env.ALLOWED_ORIGIN,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)}),env);
  const api=async(route,token=studentToken)=>fetch(base+'/api'+route,{headers:{Authorization:'Bearer '+token}});
  const id=randomUUID(),question={id,name:'QA member',department:'QA',body:'How can we verify school solution delivery?'};
@@ -69,6 +73,10 @@ test('real forum scheduled delivery reaches authenticated KCIS library; retries,
  const articleId=randomUUID();
  assert.equal((await call('/articles',{id:articleId,title:'Teacher cobalt article',body:'cobaltarticle full steps and context'},studentToken)).status,403);
  assert.equal((await call('/articles',{id:articleId,title:'Teacher cobalt article',body:'cobaltarticle full steps and context'})).status,201);
+ // A pre-profile library copy has no stable author subject. Forum ownership
+ // references must backfill it safely rather than matching a display name.
+ await fetch(base+'/api/library/forum-articles',{method:'POST',headers:{Authorization:'Bearer '+ingest,'Content-Type':'application/json'},body:JSON.stringify({articleId,version:1,title:'Teacher cobalt article',author:'QA member',markdown:'# Teacher cobalt article\ncobaltarticle full steps and context'})});
+
  await runCron();
  const articleFiles=(await (await api('/library?query=cobaltarticle')).json()).files;assert.equal(articleFiles.length,1);
  assert.equal(articleFiles[0].source,'forum-article');assert.equal(articleFiles[0].category,'ai-articles');
@@ -81,5 +89,19 @@ test('real forum scheduled delivery reaches authenticated KCIS library; retries,
  await runCron();
  const studentFiles=(await (await api('/library?query=cobaltstudent')).json()).files;assert.equal(studentFiles.length,1);assert.equal(studentFiles[0].role,'students');assert.equal(studentFiles[0].category,'ai-resolved');
 
- }finally{if(sql)sql.close();server.kill();await new Promise(resolve=>server.exitCode!==null?resolve():server.once('exit',resolve));fs.rmSync(tmp,{recursive:true,force:true});}
+
+ const upload=await fetch(base+'/api/library/upload',{method:'POST',headers:{Authorization:'Bearer '+teacherToken,'Content-Type':'application/json'},body:JSON.stringify({filename:'profile-practice.md',contentBase64:Buffer.from('# Practice\nComplete source stays intact.').toString('base64'),keywords:['Extra tag']})});assert.equal(upload.status,201);
+ const uploaded=await upload.json();const start=performance.now();
+ const update=await fetch(base+'/api/auth/nickname',{method:'PATCH',headers:{Authorization:'Bearer '+teacherToken,'Content-Type':'application/json'},body:JSON.stringify({nickname:'老師_更新',department:'資源中心'})});
+ assert.equal(update.status,200);const changed=await update.json();assert.equal(changed.user.department,'資源中心');assert.equal(changed.sync.forum,'synced');
+ console.log('PROFILE_HTTP_SPEED '+JSON.stringify({elapsedMs:Math.round(performance.now()-start),includes:'account + local library + HTTP forum profile write'}));
+ await runCron();
+ const updatedFiles=(await (await api('/library')).json()).files;
+ for(const key of [file.id,articleFiles[0].id,uploaded.id]){const row=updatedFiles.find(row=>row.id===key);assert.ok(row.keywords.includes('老師_更新'));assert.ok(row.keywords.includes('資源中心'));assert.ok(!row.keywords.includes('QA member'));}
+ assert.ok(updatedFiles.find(row=>row.id===uploaded.id).keywords.includes('Extra tag'));
+ assert.ok(!updatedFiles.find(row=>row.id===studentFiles[0].id).keywords.includes('老師_更新'));
+ assert.equal(sql.prepare('SELECT department FROM public_articles WHERE id=?').get(articleId).department,'資源中心');
+ assert.equal(sql.prepare('SELECT author FROM article_archive WHERE article_id=? AND version=1').get(articleId).author,'QA member');
+
+ }finally{if(profileServer)await new Promise(resolve=>profileServer.close(resolve));if(sql)sql.close();server.kill();await new Promise(resolve=>server.exitCode!==null?resolve():server.once('exit',resolve));fs.rmSync(tmp,{recursive:true,force:true});}
 });

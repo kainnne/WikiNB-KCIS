@@ -124,3 +124,19 @@ Teacher article sharing in AI Forum delivers authenticated WikiNB copies through
 The private curriculum is 16 Markdown units derived from the selected handwritten video transcript and identified workshop extensions. Source files: `school-content/teachers/ai-articles/`. Install with `LIBRARY_DATA_DIR=/your/private/library node scripts/install-school-content.mjs`; unchanged units are deduplicated and revised content retains old versions. Keep the source lessons out of public Git/static exports. Supply them with a private school handoff and separately transfer the private library database.
 
 KCIS AI presents two of five suggested prompts and a Reset button. Teacher/admin learning shares the core syllabus and uses different practice contexts. A forum overview includes only synced forum records and states when none exist. See `auth/README.md` for routes, storage, migration recovery and receiving administrator settings.
+
+
+## KCIS AI language and controls (2026-10-12)
+
+KCIS AI 每次進入均顯示 Language：EN／中文，不儲存上次選擇。其他工具維持英文介面。當次選擇同步更新 AI 介面、五個推薦提示的文字版本及聊天請求 responseLanguage（en／zh-TW）；後台驗證值後用系統指示指定回覆語言。切換不翻譯原始文件，不改權限與教材來源範圍；英文課程提示也沿用相同教材檢索。兩個推薦按鈕與 Reset 保留原行為，送出／停止提供可讀的無障礙名稱與鍵盤焦點。
+
+本次只更新本機預覽；8 項相關測試與 Astro build／私人資料排除通過，Gemini 請求格式以模擬外部傳輸驗證，未新增真實模型呼叫。桌面1280、平板768、手機390檢查無橫向溢出；語言選擇、提示填入、重新進入均通過。
+
+
+## Shared account fields (2026-10-12)
+
+All three account controls use the same English Account dialog with Name and Department. Department defaults to 教職員 or 學生 from the verified role, and is editable without changing permissions. Display names remain unique. Saving preserves the current tool, reader, filters and drafts. Clearing old login hints during a profile update no longer emits a signed-out event.
+
+Configure FORUM_API_URL on the Node backend and apply Forum migration 0009 before publishing this update. The profile outbox beside USERS_FILE persists retries; account-profiles.json is part of LIBRARY_DATA_DIR and must move with the library. The shared SESSION_SECRET stays backend-only. Profile delivery uses signed identity and stable author hashes, including ownership references for older forum copies; it never guesses authors by name. Existing originals and immutable history remain, while current keywords and converted Markdown metadata update. A failed delivery is shown as pending. The two profile fields are validated together; stale concurrent edits are refused without overwriting the newer account.
+
+46 tests passed (27 auth + 19 forum), including real isolated HTTP profile delivery and legacy-copy reconciliation. In the local synthetic run, updating 250 Markdown records took a median 81 ms and maximum 96 ms; account + library + local HTTP forum write took 20 ms. These are local measurements, not a hosted latency guarantee. Manual browser checks cover success/error states, unchanged URL, retained reader/draft/filter, shared fields, and account dialog at 1280/768/390 widths. Deployment includes the two KCIS frontends, the Forum Worker migration and the shared Node backend; personal WikiNB is unchanged.

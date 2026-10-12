@@ -7,7 +7,7 @@ const base = import.meta.env.BASE_URL;
 
 <BaseLayout title="KCIS AI" description="KCIS AI" pageClass="school-ai-page">
   <div class="animate-fadeIn codex-page">
-    <div class="mb-4 flex flex-wrap items-end justify-between gap-2 sm:gap-4">
+    <div class="codex-heading mb-4 flex flex-wrap items-end justify-between gap-2 sm:gap-4">
       <div class="min-w-0">
         <h1 class="codex-page-title text-2xl font-bold text-kc-blue-deep sm:text-3xl md:text-4xl">
           <span
@@ -17,7 +17,15 @@ const base = import.meta.env.BASE_URL;
         </h1>
       </div>
 
+      <button id="ai-language-change" type="button" class="ai-language-change" aria-label="Language">Language <span id="ai-language-current">EN / 中文</span></button>
     </div>
+    <dialog id="ai-language-dialog" class="ai-language-dialog" aria-labelledby="ai-language-title">
+      <h2 id="ai-language-title">Language</h2>
+      <div class="ai-language-options">
+        <button type="button" data-ai-language="en" lang="en">EN</button>
+        <button type="button" data-ai-language="zh-TW" lang="zh-TW">中文</button>
+      </div>
+    </dialog>
 
     <div id="codex-gate" class="kc-card hidden p-8 text-center">
       <p class="text-kc-muted">
@@ -38,7 +46,7 @@ const base = import.meta.env.BASE_URL;
         </div>
       </div>
       <section class="learning-prompts" aria-label="Suggested prompts">
-        <div class="learning-prompt-heading"><span>Try a prompt</span><button id="learning-prompts-reset" type="button" class="kc-btn-ghost" aria-label="Show two different prompts">↻ Reset</button></div>
+        <div class="learning-prompt-heading"><span data-ai-copy="prompts">Try a prompt</span><button id="learning-prompts-reset" type="button" class="ai-reset" aria-label="Show two different prompts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M19.4 12a7.5 7.5 0 1 0-2 5.5"/></svg><span data-ai-copy="reset">Reset</span></button></div>
         <div id="learning-prompts-list" class="learning-prompts-list"></div>
       </section>
       <form id="codex-form" class="codex-input-row">
@@ -51,16 +59,18 @@ const base = import.meta.env.BASE_URL;
           placeholder="Ask about your wiki notes…"
           autocomplete="off"
         />
-        <button id="codex-stop" type="button" class="codex-stop kc-btn-ghost" hidden disabled data-i18n="gemini.stop">Stop</button>
-        <button id="codex-send" type="submit" class="codex-send kc-btn-primary" data-i18n="gemini.send">Send</button>
+        <button id="codex-stop" type="button" class="codex-stop ai-action" hidden disabled aria-label="Stop" title="Stop"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg></button>
+        <button id="codex-send" type="submit" class="codex-send ai-action" aria-label="Send" title="Send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button>
       </form>
     </div>
   </div>
 </BaseLayout>
 
 <script>
-  import {pickLearningPrompts} from '../lib/learning-prompts.js';
-  import { t, getLocale, uiError } from '../scripts/i18n.js';
+  import {pickLearningPrompts,localizeLearningPrompt} from '../lib/learning-prompts.js';
+  import { uiError } from '../scripts/i18n.js';
+  import en from '../locales/en.json';
+  import zh from '../locales/zh-TW.json';
   import {
     checkAuthHealth,
     fetchMe,
@@ -78,12 +88,36 @@ const base = import.meta.env.BASE_URL;
   const input = document.getElementById('codex-input');
   const sendBtn = document.getElementById('codex-send');
   const stopBtn = document.getElementById('codex-stop');
+  const languageDialog = document.getElementById('ai-language-dialog');
+  let responseLanguage = null;
+  const extraCopy={en:{prompts:'Try a prompt',reset:'Reset'},'zh-TW':{prompts:'推薦提問',reset:'換一組','gemini.welcome':'我是 KCIS AI，可以協助你查找、整理校內文件與 AI 論壇的解決紀錄。','gemini.firstReplyNote':'第一次 AI 回覆可能需要約 10–15 秒。'}};
+  function t(key,vars={}){
+    const language=responseLanguage||'en';let text=extraCopy[language][key]||(language==='zh-TW'?zh[key]:en[key])||en[key]||key;
+    for(const [name,value] of Object.entries(vars))text=text.replaceAll(`{${name}}`,String(value));return text;
+  }
+  function applyConversationLanguage(){
+    document.querySelector('.codex-page')?.setAttribute('lang',responseLanguage);
+    document.querySelectorAll('.codex-page [data-i18n]').forEach(element=>element.textContent=t(element.getAttribute('data-i18n')));
+    document.querySelectorAll('[data-ai-copy]').forEach(element=>element.textContent=t(element.getAttribute('data-ai-copy')));
+    input.placeholder=t('gemini.placeholder');input.setAttribute('aria-label',t('gemini.placeholder'));
+    for(const [button,key] of [[sendBtn,'gemini.send'],[stopBtn,'gemini.stop']]){button.setAttribute('aria-label',t(key));button.title=t(key);}
+    document.getElementById('learning-prompts-reset').setAttribute('aria-label',responseLanguage==='en'?'Show two different prompts':'換兩個推薦提問');
+    document.getElementById('ai-language-current').textContent=responseLanguage==='en'?'EN':'中文';
+    resetLearningPrompts();
+  }
+  function askLanguage(){if(!languageDialog.open)languageDialog.showModal();}
+  languageDialog.addEventListener('cancel',event=>event.preventDefault());
+  document.querySelectorAll('[data-ai-language]').forEach(button=>button.addEventListener('click',()=>{
+    responseLanguage=button.dataset.aiLanguage;applyConversationLanguage();languageDialog.close();void init();
+  }));
+  document.getElementById('ai-language-change').addEventListener('click',()=>{if(!running)askLanguage();});
+  window.addEventListener('pageshow',event=>{if(event.persisted&&!running)askLanguage();});
 
   let selectedPrompts=[];
   function resetLearningPrompts(){
     const container=document.getElementById('learning-prompts-list');if(!container)return;
     const pair=pickLearningPrompts(selectedPrompts);selectedPrompts=pair.map(item=>item.id);container.replaceChildren();
-    for(const prompt of pair){const button=document.createElement('button');button.type='button';button.className='learning-prompt';button.textContent=prompt.label;button.title=prompt.text;button.onclick=()=>{if(running)return;input.value=prompt.text;input.focus();};container.append(button);}
+    for(const item of pair){const prompt=localizeLearningPrompt(item,responseLanguage||'en');const button=document.createElement('button');button.type='button';button.className='learning-prompt';button.setAttribute('aria-label',prompt.label);const label=document.createElement('span');label.textContent=prompt.label;button.append(label);button.title=prompt.text;button.onclick=()=>{if(running)return;input.value=prompt.text;input.focus();};container.append(button);}
   }
   document.getElementById('learning-prompts-reset')?.addEventListener('click',resetLearningPrompts);
   resetLearningPrompts();
@@ -153,11 +187,12 @@ const base = import.meta.env.BASE_URL;
   function setRunning(isRunning) {
     running = isRunning;
     if (sendBtn) sendBtn.disabled = isRunning;
+    document.getElementById('ai-language-change').disabled=isRunning;
     document.querySelectorAll('.learning-prompts button').forEach(button=>button.disabled=isRunning);
     if (stopBtn) {
       stopBtn.disabled = !isRunning;
       stopBtn.hidden = !isRunning;
-      stopBtn.textContent = t('gemini.stop');
+      stopBtn.setAttribute('aria-label',t('gemini.stop'));
     }
     input?.toggleAttribute('disabled', isRunning);
   }
@@ -173,7 +208,7 @@ const base = import.meta.env.BASE_URL;
   }
 
   function onLocaleChange() {
-    if (stopBtn && !running) stopBtn.textContent = t('gemini.stop');
+    if(responseLanguage)applyConversationLanguage();
   }
 
   document.addEventListener('wikinb:locale-change', onLocaleChange);
@@ -181,7 +216,7 @@ const base = import.meta.env.BASE_URL;
   let initialized = false;
   let initializing = false;
   async function init() {
-    if (initialized || initializing) return;
+    if (!responseLanguage || initialized || initializing) return;
     initializing = true;
     const me = await fetchMe().catch(() => ({ authenticated: false }));
     if (!me.authenticated) {
@@ -213,7 +248,7 @@ const base = import.meta.env.BASE_URL;
     e.preventDefault();
     if (!running) return;
     stopBtn.disabled = true;
-    stopBtn.textContent = t('gemini.stopping');
+    stopBtn.setAttribute('aria-label',t('gemini.stopping'));
     try {
       await stopCodex();
     } catch {
@@ -224,7 +259,7 @@ const base = import.meta.env.BASE_URL;
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (running) return;
+    if (running || !responseLanguage) return;
     const msg = input?.value?.trim();
     if (!msg) return;
 
@@ -269,6 +304,7 @@ const base = import.meta.env.BASE_URL;
           reasoningEffort: 'default',
           signal: abortController.signal,
           history: chatHistory.slice(-16),
+          responseLanguage,
         },
       );
 
@@ -297,7 +333,7 @@ const base = import.meta.env.BASE_URL;
   });
 
   document.addEventListener('wikinb:auth-change', (event) => {
-    if (event.detail?.loggedIn) void init();
+    if (event.detail?.loggedIn) void init();else{abortController?.abort();initialized=false;chatHistory=[];terminal?.classList.add('hidden');gate?.classList.remove('hidden');for(const line of [...output.children].slice(1))line.remove();}
   });
-  init();
+  askLanguage();
 </script>

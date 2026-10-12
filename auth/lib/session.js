@@ -18,6 +18,8 @@ export async function createSessionToken(user, { expiresIn = '7d' } = {}) {
     email: user.email || '',
     name: user.name,
     nickname: user.nickname || '',
+    department: user.department || (user.role==='student'?'學生':'教職員'),
+    updatedAt:user.updatedAt||'',
     role: user.role,
     teacherId: user.teacherId || '',
     teacherIds: Array.isArray(user.teacherIds) ? user.teacherIds : [],
@@ -40,6 +42,8 @@ export async function verifySessionToken(token) {
       email: String(payload.email || payload.sub || ''),
       name: String(payload.name || ''),
       nickname: String(payload.nickname || ''),
+      department:String(payload.department||''),
+      updatedAt:String(payload.updatedAt||''),
       role: String(payload.role || 'student'),
       teacherId: String(payload.teacherId || ''),
       teacherIds: Array.isArray(payload.teacherIds)

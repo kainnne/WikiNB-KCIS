@@ -61,3 +61,18 @@ async function access(){
   const selected=new URLSearchParams(location.search).get('file');if(selected)await openFile(selected);
 }
 void perform(access);
+
+let observedProfile='',accountRefresh=0;
+async function refreshAccountFiles(){
+ const generation=++accountRefresh,selected=current?.id;
+ try{const data=await request(mine?'?mine=1':'');if(generation!==accountRefresh)return;categories=data.categories;files=data.files;el('library-gate').hidden=true;el('library-content').hidden=false;render();
+  if(selected){const fresh=await request('/files/'+selected);if(generation!==accountRefresh||current?.id!==selected)return;current=fresh;el('library-reader-keywords').replaceChildren(...tags(fresh.keywords).children);}
+ }catch(error){if(generation===accountRefresh)status(uiError(error));}
+}
+document.addEventListener('wikinb:auth-change',event=>{
+ const session=event.detail||{},key=session.loggedIn?[session.user.email,session.user.nickname,session.user.department].join('|'):'';
+ if(key===observedProfile)return;observedProfile=key;
+ if(!session.loggedIn){accountRefresh++;files=[];current=null;el('library-content').hidden=true;el('library-gate').hidden=false;return;}
+ if(!files.length&&busy)return;void refreshAccountFiles();
+});
+window.addEventListener('kcis:account-updated',event=>{if(event.detail?.user)event.detail.waitUntil?.(refreshAccountFiles());});

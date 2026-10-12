@@ -63,10 +63,10 @@ export function hasSessionHint() {
   try { return Boolean(getStoredToken() || localStorage.getItem('wikinb_kcis_signed_in')); } catch { return false; }
 }
 
-export function clearSessionHint() {
+export function clearSessionHint({notify=true}={}) {
   setStoredToken('');
   try { localStorage.removeItem('wikinb_kcis_signed_in'); } catch {}
-  if (typeof document !== 'undefined') {
+  if (notify && typeof document !== 'undefined') {
     document.dispatchEvent(
       new CustomEvent('wikinb:auth-change', {
         detail: { loggedIn: false, user: null, isTeacher: false },
@@ -494,6 +494,7 @@ export async function codexChatStream(message, onEvent = () => {}, options = {})
       model: options.model,
       reasoningEffort: options.reasoningEffort,
       history: options.history || [],
+      responseLanguage: options.responseLanguage,
       teacherId: options.teacherId,
       subjectId: options.subjectId,
     }),
@@ -790,7 +791,7 @@ export async function mountNavAuth() {
     const teacher = loggedIn && isTeacherUser(me.user);
     const student = loggedIn && !teacher;
     const classroomStudent = student && me.user?.authType === 'student-code';
-    loginLink?.classList.toggle('hidden', loggedIn);
+    loginLink?.classList.toggle('hidden', loggedIn);if(loginLink){loginLink.textContent='Sign in';loginLink.disabled=false;}
     // 訪客：AI應用導航；登入後（老師／學生）隱藏
     navAi?.classList.toggle('hidden', loggedIn);
     // 彩色 CTA：老師 → My notes；學生 → Gemini × KCIS

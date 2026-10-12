@@ -90,7 +90,38 @@ function save(rows) { atomic(path.join(root(),'manifest.json'),JSON.stringify(ro
 let queue=Promise.resolve();
 function serialized(fn) { const result=queue.then(fn); queue=result.catch(()=>{}); return result; }
 function recordPath(record,file='') { return path.join(root(),record.role,record.category,record.id,file); }
-function publicRecord(row) { const { ownerEmail, ...item }=row; return item; }
+function publicRecord(row) { const { ownerEmail,ownerSubject,accountKeywords,profileUpdatedAt, ...item }=row; return item; }
+export function accountSubject(email){return createHash('sha256').update('account:'+String(email).trim().toLowerCase()).digest('hex');}
+function profiles(){const file=path.join(root(),'account-profiles.json');return fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{};}
+function profileMarkdown(text,row){
+ const match=text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+ const header=(match?.[1]||'').replace(/^(?:teacher|author|department|keywords):[^\n]*(?:\n[ \t]+[^\n]*)*/gm,'').trim();
+ const metadata=[header,'teacher: '+JSON.stringify(row.uploader),'department: '+JSON.stringify(row.department),'keywords:',...row.keywords.map(word=>'  - '+JSON.stringify(word))].filter(Boolean).join('\n');
+ return '---\n'+metadata+'\n---\n'+(match?text.slice(match[0].length):text);
+}
+function applyProfile(row,profile){
+ const previous=row.accountKeywords||[row.uploader,row.department|| (row.role==='students'?'學生':'教職員')];
+ row.accountKeywords=accountKeywords(profile);row.department=profile.department;row.uploader=profile.nickname||profile.name;
+ const extras=(row.keywords||[]).filter(word=>!previous.some(old=>normalized(old)===normalized(word)));
+ row.keywords=[...new Set([...row.accountKeywords,...extras])];
+ row.profileUpdatedAt=profile.updatedAt;
+ return row;
+}
+export async function updateLibraryAccount(user,{references}={}){
+ return serialized(()=>{
+  const subject=accountSubject(user.email),map=profiles(),profile={nickname:user.nickname,department:accountKeywords(user)[1]||user.department,role:user.role,updatedAt:user.updatedAt};
+  map[subject]=profile;initialize();atomic(path.join(root(),'account-profiles.json'),JSON.stringify(map));
+  const rows=manifest();let updated=0;
+  for(const row of rows.filter(row=>row.ownerEmail===user.email||row.ownerSubject===subject||(!row.ownerEmail&&!row.ownerSubject&&(references?.articles?.includes(row.articleId)||references?.questions?.includes(row.questionId))))){
+   if(row.profileUpdatedAt===user.updatedAt)continue;
+   const file=recordPath(row,'content.md'),text=fs.existsSync(file)?fs.readFileSync(file,'utf8'):'';
+   const snapshot=recordPath(row,'versions/profile-'+randomUUID()+'.json');fs.mkdirSync(path.dirname(snapshot),{recursive:true});atomic(snapshot,JSON.stringify({metadata:row,markdown:text}));
+   applyProfile(row,profile);row.ownerSubject=subject;
+   if(text)atomic(file,profileMarkdown(text,row));updated++;
+  }
+  if(updated)save(rows);return {updated};
+ });
+}
 export function listLibrary(user,{query='',role='',category='',mine=''}={}) {
   requireSchool(user); const q=normalized(query).slice(0,200);
   return manifest().filter(r=>!r.deletedAt&&(!mine||r.ownerEmail===user.email)&&(!role||r.role===role)&&(!category||r.category===category)&&(!q||normalized(r.filename+' '+r.title+' '+r.preview+' '+(r.keywords||[]).join(' ')).includes(q))).sort((a,b)=>a.source==='curriculum'&&b.source==='curriculum'?a.filename.localeCompare(b.filename):a.source==='curriculum'?1:b.source==='curriculum'?-1:b.updatedAt.localeCompare(a.updatedAt)).map(publicRecord);
@@ -126,7 +157,7 @@ export async function uploadLibrary(user,{filename,contentBase64,keywords=[]}) {
   }
   return serialized(async()=>{
     initialize();const id=randomUUID(), initial=classifyFile(filename), now=new Date().toISOString();
-    const row={id,role,category:initial,filename,title:filename,ownerEmail:user.email,uploader:user.nickname||user.name||user.email.split('@')[0],keywords:noteKeywords,size:buffer.length,readable:false,status:'stored',createdAt:now,updatedAt:now,preview:'',source:'upload'};
+    const row={id,role,category:initial,filename,title:filename,ownerEmail:user.email,ownerSubject:accountSubject(user.email),department:user.department||accountKeywords(user)[1],accountKeywords:accountKeywords(user),uploader:user.nickname||user.name||user.email.split('@')[0],keywords:noteKeywords,size:buffer.length,readable:false,status:'stored',createdAt:now,updatedAt:now,preview:'',source:'upload'};
     const dir=recordPath(row);fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'original'),buffer,{mode:0o600});
     try {
       const {isSupportedDocument,convertDocument}=await import('./document-import.js');
@@ -147,6 +178,7 @@ export async function uploadLibrary(user,{filename,contentBase64,keywords=[]}) {
         if(row.category!==initial)fs.renameSync(dir,recordPath(row));
       }
     } catch { row.status='conversion-failed'; }
+    const latest=profiles()[row.ownerSubject];if(latest){applyProfile(row,latest);const file=recordPath(row,'content.md');if(fs.existsSync(file))atomic(file,profileMarkdown(fs.readFileSync(file,'utf8'),row));}
     const rows=manifest();rows.push(row);save(rows);return publicRecord(row);
   });
 }
@@ -156,15 +188,17 @@ export function verifyIngestSecret(value) {
   return expected.length>=32&&Buffer.byteLength(provided)===Buffer.byteLength(expected)&&timingSafeEqual(Buffer.from(provided),Buffer.from(expected));
 }
 export async function ingestForumSolution(input) {
-  const {questionId,version,markdown,deleted=false,role='teachers'}=input||{};
+  const {questionId,version,markdown,deleted=false,role='teachers',ownerSubject='',author='AI Forum',department=role==='students'?'學生':'教職員'}=input||{};
+  if(ownerSubject&&!/^[a-f0-9]{64}$/.test(ownerSubject))throw Error('Invalid owner subject');
   if(!['teachers','students'].includes(role)||typeof deleted!=='boolean'||!/^[a-f0-9-]{36}$/.test(String(questionId))||!Number.isInteger(version)||version<1||typeof markdown!=='string'||!markdown.trim()||markdown.length>20000)throw new Error('解決紀錄格式不符');
   return serialized(()=>{
     const rows=manifest(),existing=rows.find(r=>r.source==='forum'&&r.questionId===questionId);
     if(existing&&existing.sourceVersion>=version)return {id:existing.id,duplicate:true};
     const row=existing||{id:randomUUID(),role,category:'ai-resolved',questionId,source:'forum',createdAt:new Date().toISOString(),filename:`forum-${questionId}.md`,uploader:'AI Forum',ownerEmail:''};
-    Object.assign(row,{deletedAt:deleted?new Date().toISOString():null,title:'AI Forum solution',filename:'Forum solution — '+String(markdown.match(/## 問題\n([^\n]+)/)?.[1]||'AI 論壇').replace(/[\\/\r\n]/g,' ').slice(0,40)+'.md',keywords:['AI Forum'],resolution:/^status: resolved$/m.test(markdown)?'resolved':'unresolved',hasMarkdown:true,sourceVersion:version,readable:true,status:'readable',size:Buffer.byteLength(markdown),preview:markdown.slice(0,400),updatedAt:new Date().toISOString()});
+    Object.assign(row,{ownerSubject,uploader:author,department,accountKeywords:[author,department],deletedAt:deleted?new Date().toISOString():null,title:'AI Forum solution',filename:'Forum solution — '+String(markdown.match(/## 問題\n([^\n]+)/)?.[1]||'AI 論壇').replace(/[\\/\r\n]/g,' ').slice(0,40)+'.md',keywords:[author,department,'AI Forum'],resolution:/^status: resolved$/m.test(markdown)?'resolved':'unresolved',hasMarkdown:true,sourceVersion:version,readable:true,status:'readable',size:Buffer.byteLength(markdown),preview:markdown.slice(0,400),updatedAt:new Date().toISOString()});
     fs.mkdirSync(recordPath(row,'versions'),{recursive:true});
-    atomic(recordPath(row,`versions/v${version}.md`),markdown);atomic(recordPath(row,'content.md'),markdown);atomic(recordPath(row,'original'),markdown);
+    const latest=ownerSubject&&profiles()[ownerSubject];if(latest)applyProfile(row,latest);
+    atomic(recordPath(row,`versions/v${version}.md`),markdown);atomic(recordPath(row,'content.md'),ownerSubject?profileMarkdown(markdown,row):markdown);atomic(recordPath(row,'original'),markdown);
     if(!existing)rows.push(row);save(rows);return {id:row.id,duplicate:false};
   });
 }
@@ -180,15 +214,17 @@ export function searchLibraryText(user,query,{category='',source=''}={}) {
 }
 
 export async function ingestForumArticle(input) {
- const {articleId,version,markdown,title,author,deleted=false}=input||{};
+ const {articleId,version,markdown,title,author,deleted=false,ownerSubject='',department='教職員'}=input||{};
+ if(ownerSubject&&!/^[a-f0-9]{64}$/.test(ownerSubject))throw Error('Invalid owner subject');
  if(typeof deleted!=='boolean'||!/^[a-f0-9-]{36}$/.test(String(articleId))||!Number.isInteger(version)||version<1||typeof markdown!=='string'||!markdown.trim()||markdown.length>30000||typeof title!=='string'||!title.trim()||title.length>160||typeof author!=='string'||!author.trim()||author.length>60)throw Error('Invalid article record');
  return serialized(()=>{
   const rows=manifest(),existing=rows.find(row=>row.source==='forum-article'&&row.articleId===articleId);
   if(existing&&existing.sourceVersion>=version)return {id:existing.id,duplicate:true};
   const now=new Date().toISOString(),row=existing||{id:randomUUID(),role:'teachers',category:'ai-articles',articleId,source:'forum-article',createdAt:now,ownerEmail:''};
-  Object.assign(row,{title,filename:title.replace(/[\\/\r\n\x00-\x1f]/g,' ').slice(0,160)+'.md',uploader:author,keywords:[author,'教職員','AI Forum'],sourceVersion:version,hasMarkdown:true,readable:true,status:'readable',deletedAt:deleted?now:null,updatedAt:now,size:Buffer.byteLength(markdown),preview:markdown.slice(0,400)});
+  Object.assign(row,{ownerSubject,department,accountKeywords:[author,department],title,filename:title.replace(/[\\/\r\n\x00-\x1f]/g,' ').slice(0,160)+'.md',uploader:author,keywords:[author,department,'AI Forum'],sourceVersion:version,hasMarkdown:true,readable:true,status:'readable',deletedAt:deleted?now:null,updatedAt:now,size:Buffer.byteLength(markdown),preview:markdown.slice(0,400)});
   fs.mkdirSync(recordPath(row,'versions'),{recursive:true});
-  atomic(recordPath(row,`versions/v${version}.md`),markdown);atomic(recordPath(row,'content.md'),markdown);atomic(recordPath(row,'original'),markdown);
+  const latest=ownerSubject&&profiles()[ownerSubject];if(latest)applyProfile(row,latest);
+  atomic(recordPath(row,`versions/v${version}.md`),markdown);atomic(recordPath(row,'content.md'),ownerSubject?profileMarkdown(markdown,row):markdown);atomic(recordPath(row,'original'),markdown);
   if(!existing)rows.push(row);save(rows);return {id:row.id,duplicate:false};
  });
 }

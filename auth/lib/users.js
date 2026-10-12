@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import { normalizeEmail } from './domain.js';
-import { effectiveRosterEntry, isTeacherRole, accountKeywords } from './account.js';
+import { effectiveRosterEntry, isTeacherRole, accountKeywords,accountDepartment,validateDepartment } from './account.js';
 import { validateNickname } from './nickname.js';
 import { assertStoredNicknameAvailable, usersStorePath } from './nickname-store.js';
 
@@ -24,7 +24,7 @@ function readStore() {
 
 function writeStore(store) {
   ensureStore();
-  fs.writeFileSync(usersStorePath(), JSON.stringify(store, null, 2), 'utf8');
+  const temp=usersStorePath()+'.tmp';fs.writeFileSync(temp, JSON.stringify(store, null, 2), {mode:0o600});fs.renameSync(temp,usersStorePath());
 }
 
 export function findUserByEmail(email) {
@@ -35,7 +35,7 @@ export function findUserByEmail(email) {
 export function publicUser(user) {
   if (!user) return null;
   const { passwordHash, ...rest } = user;
-  return { ...rest, keywords: accountKeywords(user) };
+  return { ...rest,name:user.nickname||user.name,department:accountDepartment(user), keywords: accountKeywords(user) };
 }
 
 /** 從 roster／網域規則建立／更新使用者殼 */
@@ -62,6 +62,7 @@ export function ensureUserFromRoster(rosterEntry) {
       name: effective.name || key,
       nickname: defaultNickname(key),
       nicknameCustomized: false,
+      department:accountDepartment(effective),
       role: effective.role || 'student',
       teacherId: effective.teacherId || '',
       passwordHash: '',
@@ -142,7 +143,7 @@ export function completeOtpLogin(email) {
   return publicUser(user);
 }
 
-export function updateNickname(email, nickname) {
+export function updateNickname(email, nickname, department, expectedRevision) {
   const checked = validateNickname(nickname);
   if (!checked.ok) throw new Error(checked.error);
 
@@ -150,12 +151,16 @@ export function updateNickname(email, nickname) {
   const key = normalizeEmail(email);
   const user = store.users.find((u) => normalizeEmail(u.email) === key);
   if (!user) throw new Error('找不到使用者');
+  if(expectedRevision!==undefined&&expectedRevision!==user.updatedAt)throw Object.assign(Error('Account changed elsewhere. Reopen Account and try again.'),{status:409});
+  const checkedDepartment=department===undefined?accountDepartment(user):validateDepartment(department);
 
   assertStoredNicknameAvailable(checked.nickname, { email: key });
 
   user.nickname = checked.nickname;
+  user.name = checked.nickname;
+  user.department = checkedDepartment;
   user.nicknameCustomized = true;
-  user.updatedAt = new Date().toISOString();
+  user.updatedAt = new Date(Math.max(Date.now(),Date.parse(user.updatedAt||'')+1||0)).toISOString();
   writeStore(store);
   return publicUser(user);
 }

@@ -12,3 +12,15 @@ export function pickLearningPrompts(previous=[],random=Math.random){
  if(previous.length===2&&pair.every(item=>previous.includes(item.id)))pair=[shuffled[0],shuffled.find(item=>!previous.includes(item.id))];
  return pair;
 }
+
+const englishTexts={
+ admin:"I'm an administrative colleague learning basic AI skills. Plan a course using Zhu Xi's AI introductory notes. List the units, then teach unit one. Teach one unit at a time with exercises on meeting minutes, notices or event planning. Ask me a question after each lesson and wait for my answer; check my understanding before continuing. Teachers and administrative colleagues follow the same core syllabus with different exercises. Say when the source notes are unavailable, and do not invent the author's statements.",
+ teacher:"I'm a teacher learning basic AI skills. Plan a course using Zhu Xi's AI introductory notes. List the units, then teach unit one. Teach one unit at a time with exercises on summarizing materials, writing questions or making teaching slides. Ask me a question after each lesson and wait for my answer; check my understanding before continuing. Teachers and administrative colleagues follow the same core syllabus with different exercises. Say when the source notes are unavailable, and do not invent the author's statements.",
+ media:"I'd like to learn how to make slides, images and videos using Zhu Xi's notes. Help me clarify what to make, who it is for and what materials I have, then plan the steps and usable instructions. For images and videos, make a few samples before completing the work. First ask whether I want to begin with slides, images or video, and wait for my answer.",
+ forum:"What's currently in AI Forum? Use only forum articles and resolved questions synced to the library. Summarize their topics, solutions and sources. If there is no forum data, say so. Do not substitute general AI knowledge or course materials for forum records.",
+ knowledge:"Help me build my AI knowledge using Zhu Xi's notes. First ask which tools I already use and what work I want to improve. Choose one suitable topic, explain it using examples from the notes and give me a small exercise. Distinguish additional general knowledge from the notes, and do not present guesses as the author's experience."
+};
+const chineseLabels={admin:'行政同仁學 AI',teacher:'教師同仁學 AI',media:'簡報、圖片與影片',forum:'AI 論壇有哪些內容？',knowledge:'補充 AI 知識'};
+export function localizeLearningPrompt(prompt,language){
+ return {...prompt,label:language==='zh-TW'?chineseLabels[prompt.id]:prompt.label,text:language==='en'?englishTexts[prompt.id]:prompt.text};
+}

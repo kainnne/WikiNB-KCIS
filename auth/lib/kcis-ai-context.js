@@ -3,7 +3,10 @@ import path from 'node:path';
 import {searchLibraryText,listLibrary,readLibrary} from './school-library.js';
 import {loadPrivateCorpusForUser} from './private-files.js';
 import {queryTerms,relevantExcerpt,retrievalQuestion} from './retrieval.js';
-export function kcisInstructions(){return fs.readFileSync(new URL('../prompts/kcis-ai.md',import.meta.url),'utf8');}
+export function kcisInstructions(language){
+ const instruction=language==='en'?'Reply in English, even when the question or sources are in Chinese. Preserve original source titles when citing them.':language==='zh-TW'?'請以繁體中文回答，即使問題或資料來源是英文。引用時保留原始來源標題。':'';
+ return fs.readFileSync(new URL('../prompts/kcis-ai.md',import.meta.url),'utf8')+(instruction?'\n\nSelected conversation language (takes precedence over language matching):\n'+instruction:'');
+}
 export function relevantWikiContext(user,query,maxChars=6500){
  if(!user||!query)return '';
  const terms=queryTerms(query),dir=path.join(process.env.PROJECT_ROOT||process.cwd(),'wiki/teachers'),matches=[];
@@ -24,7 +27,7 @@ export function forumOverview(user){
  const rows=listLibrary(user).filter(row=>['forum','forum-article'].includes(row.source));
  return {scope:'forum_only',count:rows.length,documents:rows.slice(0,12).map(row=>({id:row.id,title:row.title||row.filename,status:row.resolution||'published',updatedAt:row.updatedAt,excerpt:readLibrary(user,row.id).markdown.slice(0,1200)}))};
 }
-export function isAuthoredLessonRequest(message,history=[]){return [message,...(Array.isArray(history)?history.slice(-8).map(item=>String(item.content||'')):[])].some(text=>/朱璽.*(?:筆記|課程)|(?:依|根據).*朱璽/.test(text));}
+export function isAuthoredLessonRequest(message,history=[]){return [message,...(Array.isArray(history)?history.slice(-8).map(item=>String(item.content||'')):[])].some(text=>/朱璽.*(?:筆記|課程)|(?:依|根據).*朱璽|Zhu Xi.*(?:notes|course)/i.test(text));}
 export function groundedContext(user,message,history=[]){
  if(user?.authType==='email-otp'&&isForumOverview(message))return JSON.stringify(forumOverview(user)).slice(0,16000);
  const query=retrievalQuestion(message,history);if(!query)return '';

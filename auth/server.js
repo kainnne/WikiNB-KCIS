@@ -10,6 +10,7 @@ import { CATEGORIES, requireSchool, listLibrary, readLibrary, libraryAttachment,
 import { libraryChat } from './lib/library-agent.js';
 import { normalizeEmail, rejectReasonForEmail } from './lib/domain.js';
 import { chatOnce, chatStream, getModelsPayload, stopJob } from './lib/llm.js';
+import {enqueueProfileUpdate,flushProfileUpdates,profileSyncStatus} from './lib/profile-sync.js';
 import { createLoginCode, checkLoginCode, sendCodeEmail, verifyLoginCode } from './lib/mail-code.js';
 import { getRosterPath, resolveLoginRoster } from './lib/roster.js';
 import {
@@ -639,13 +640,14 @@ app.post('/api/auth/student-login', async (req, res) => {
 app.patch('/api/auth/nickname', requireAuth, async (req, res) => {
   try {
     const nickname = String(req.body?.nickname || '').trim();
-    const user = {...updateNickname(req.user.email, nickname),role:req.user.role,teacherId:req.user.teacherId};
+    const user = {...updateNickname(req.user.email, nickname,req.body?.department,req.body?.expectedRevision),role:req.user.role,teacherId:req.user.teacherId,authType:'email-otp'};
     user.keywords = publicUser(user).keywords;
+    enqueueProfileUpdate(user);await flushProfileUpdates({onlyEmail:user.email});
     // Shared library does not create per-person Drive folders.
     const token = await issueSession(res, user);
-    res.json({ ok: true, user, token, message: '暱稱已更新' });
+    res.json({ ok: true, user, token, sync:profileSyncStatus(user.email), message: 'Account updated' });
   } catch (err) {
-    res.status(400).json({ error: err.message || '無法更新暱稱' });
+    res.status(err.status||400).json({ error: err.message || 'Unable to update account' });
   }
 });
 
@@ -665,7 +667,8 @@ app.post('/api/codex/stop', requireAuth, (req, res) => {
 
 app.post('/api/codex/chat', requireAuth, async (req, res) => {
   if(String(process.env.LLM_PROVIDER||'gemini').toLowerCase()==='codex')return res.status(403).json({error:'校內資料問答不開放本機 CLI，請使用資料庫問答'});
-  const { message, model, reasoningEffort, history, teacherId, subjectId } = req.body || {};
+  const { message, model, reasoningEffort, history, teacherId, subjectId, responseLanguage } = req.body || {};
+  if(responseLanguage !== undefined && !['en','zh-TW'].includes(responseLanguage))return res.status(400).json({error:'Unsupported response language'});
   if (!message?.trim()) {
     res.status(400).json({ error: '請輸入訊息' });
     return;
@@ -679,6 +682,7 @@ app.post('/api/codex/chat', requireAuth, async (req, res) => {
     chatStream(res, {
       message,
       history,
+      responseLanguage,
       model,
       reasoningEffort,
       teacherId,
@@ -693,6 +697,7 @@ app.post('/api/codex/chat', requireAuth, async (req, res) => {
     const result = await chatOnce({
       message,
       history,
+      responseLanguage,
       model,
       reasoningEffort,
       teacherId,
@@ -956,6 +961,7 @@ app.get('/api/auth/shared-session',requireSchoolAuth,async(req,res)=>{
  const token=await createSessionToken(req.user,{expiresIn:'15m'});
  res.set('Cache-Control','private, no-store').json({user:req.user,token,admin:req.user.email==='kainnne@kcis.com.tw'});
 });
+const profileRetry=setInterval(()=>{void flushProfileUpdates().catch(()=>{});},30000);profileRetry.unref();
 app.use('/api/library',(req,res,next)=>{res.set('Cache-Control','private, no-store');next();});
 app.post('/api/library/forum-solutions',async(req,res)=>{
  if(!verifyIngestSecret(req.headers.authorization))return res.status(401).json({error:'Unauthorized'});

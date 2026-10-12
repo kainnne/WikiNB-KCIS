@@ -1,0 +1,26 @@
+/* Shared verbatim with WikiNB KCIS: account controls and dialog. */
+.kc-account-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px;max-width:180px;padding:8px 14px;border:1px solid #dce1ee;border-radius:999px;background:#edf0f9;color:#243c6c;font:inherit;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:background .18s,transform .18s,border-color .18s}
+.kc-account-button:hover{background:#fff;border-color:#bcb1d5}.kc-account-button:active{transform:translateY(1px)}
+.kc-account-dialog{width:min(400px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow-y:auto;padding:28px;border:1px solid #dce1ee;border-radius:24px;background:#fff;color:#243c6c;box-shadow:0 20px 80px #26376830;font-family:inherit}
+.kc-account-dialog::backdrop{background:#23335930;backdrop-filter:blur(5px)}
+.kc-account-dialog h2{font-size:22px;font-weight:600;margin:0 0 18px}
+.kc-account-dialog label{display:grid;gap:7px;margin:0;font-size:14px;font-weight:500}
+.kc-account-dialog form{display:grid;gap:16px}
+.kc-account-dialog input{box-sizing:border-box;min-height:44px;width:100%;min-width:0;padding:10px 12px;border:1px solid #dce1ee;border-radius:12px;background:#f8f9fc;color:#243c6c;font:inherit;font-size:16px}
+.kc-account-dialog input:focus{outline:2px solid #9783bd;outline-offset:2px}
+.kc-account-close{position:absolute;right:14px;top:10px;display:flex;align-items:center;justify-content:center;min-width:40px;min-height:40px;padding:0;border:0;border-radius:50%;background:transparent;color:#6b7390;font-size:25px;cursor:pointer}.kc-account-close:hover{background:#f0edf8}
+.kc-account-email{margin:-6px 0 20px;font-size:13px;color:#697591;overflow-wrap:anywhere}
+.kc-account-dialog small{font-size:12px;font-weight:400;color:#697591}
+.kc-account-dialog p[role=alert]{margin:0;color:#b42338;font-size:14px;overflow-wrap:anywhere}
+.kc-account-actions{display:flex;align-items:center;gap:10px;margin-top:3px}
+.kc-account-primary,.kc-account-secondary{min-height:44px;padding:10px 18px;border:1px solid transparent;border-radius:999px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:background .18s,transform .18s}
+.kc-account-primary{background:#354c93;color:white}.kc-account-primary:hover{background:#4c438b}
+.kc-account-secondary{border-color:#dce1ee;background:#fff;color:#243c6c}.kc-account-secondary:hover{background:#f0edf8}
+.kc-account-primary:active,.kc-account-secondary:active{transform:translateY(1px)}
+.kc-account-text{min-height:40px;padding:4px 0;border:0;background:transparent;color:#536697;text-align:left;font:inherit;font-size:13px;cursor:pointer}
+.kc-account-button:focus-visible,.kc-account-primary:focus-visible,.kc-account-secondary:focus-visible,.kc-account-close:focus-visible,.kc-account-text:focus-visible{outline:3px solid #9da5dd;outline-offset:3px}
+.kc-account-dialog button:disabled,.kc-account-dialog input:disabled,.kc-account-button:disabled{opacity:.55;cursor:default;transform:none}
+.kc-account-notice{position:fixed;right:18px;bottom:18px;z-index:100;padding:10px 15px;max-width:calc(100vw - 36px);border:1px solid #dce1ee;border-radius:12px;background:white;color:#243c6c;box-shadow:0 4px 20px #26376814;font-size:13px;overflow-wrap:anywhere}.kc-account-notice:empty{display:none}
+.kc-account-dialog [hidden]{display:none!important}
+@media(max-width:640px){.kc-account-button{max-width:110px;padding:8px 10px;font-size:12px}.kc-account-dialog{padding:24px}.kc-account-dialog h2{font-size:20px}}
+@media(prefers-reduced-motion:reduce){.kc-account-button,.kc-account-primary,.kc-account-secondary{transition:none}}

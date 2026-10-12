@@ -35,5 +35,7 @@ test('a syllabus followed by unit one keeps retrieval on units 01/02; explicit C
   let context=JSON.parse(groundedContext(user,'我了解了',[request,assistant]));assert.deepEqual(context.unitNotes.map(note=>note.title),['01｜先從聊天開始','02｜指令就像交代工作']);
   context=JSON.parse(groundedContext(user,'請教我第二單元',[request,assistant]));assert.equal(context.unitNotes[0].title,'02｜指令就像交代工作');
   context=JSON.parse(groundedContext(user,'Please teach unit 2',[request,assistant]));assert.equal(context.unitNotes[0].title,'02｜指令就像交代工作');
+  context=JSON.parse(groundedContext(user,"Plan a course using Zhu Xi's AI introductory notes. List the units, then teach unit one."));
+  assert.equal(context.scope,'authored_lessons');assert.deepEqual(context.unitNotes.map(note=>note.title),['01｜先從聊天開始','02｜指令就像交代工作']);assert.equal(context.syllabus.length,3);
  }finally{fs.rmSync(tmp,{recursive:true,force:true});if(saved===undefined)delete process.env.LIBRARY_DATA_DIR;else process.env.LIBRARY_DATA_DIR=saved;}
 });

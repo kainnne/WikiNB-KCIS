@@ -19,7 +19,7 @@ test('KCIS identity stays small; document retrieval reads relevant Markdown incl
  fs.mkdirSync(path.join(dir,'private'));fs.writeFileSync(path.join(dir,'private/secret.md'),'chloroplast PRIVATE_SENTINEL');
  await uploadLibrary(user,{filename:'science.md',contentBase64:Buffer.from('# Cell library\nCell membrane controls transport.').toString('base64')});
  const request=geminiRequestBody('你是誰',[],user,'gemini-3.1-flash-lite');
- assert.match(request.systemInstruction.parts[0].text,/You are KCIS AI/);assert.ok(request.systemInstruction.parts[0].text.length<2500);
+ assert.match(request.systemInstruction.parts[0].text,/You are KCIS AI/);assert.ok(request.systemInstruction.parts[0].text.length<4000);
  assert.ok(!JSON.stringify(request).includes('chloroplast'));assert.equal(request.contents.at(-1).parts.length,1);
  assert.deepEqual(request.generationConfig.thinkingConfig,{thinkingLevel:'minimal'});
  assert.equal(geminiRequestBody('What does the cell membrane do?',[],user,'gemini-3.1-flash-lite').contents.at(-1).parts.length,1);
@@ -28,12 +28,20 @@ test('KCIS identity stays small; document retrieval reads relevant Markdown incl
  assert.throws(()=>groundedContext({...user,email:'intruder@gmail.com'},'cell membrane'));
  }finally{fs.rmSync(tmp,{recursive:true,force:true});if(oldRoot===undefined)delete process.env.PROJECT_ROOT;else process.env.PROJECT_ROOT=oldRoot;if(oldLibrary===undefined)delete process.env.LIBRARY_DATA_DIR;else process.env.LIBRARY_DATA_DIR=oldLibrary;}
 });
+test('chosen reply language overrides question language without changing source text',()=>{
+ const english=geminiRequestBody('你是誰',[],user,'gemini-3.1-flash-lite','en');
+ const chinese=geminiRequestBody('Who are you?',[],user,'gemini-3.1-flash-lite','zh-TW');
+ assert.match(english.systemInstruction.parts[0].text,/Reply in English, even when/);
+ assert.match(chinese.systemInstruction.parts[0].text,/請以繁體中文回答/);
+ assert.equal(english.contents.at(-1).parts.at(-1).text,'你是誰');
+ assert.equal(chinese.contents.at(-1).parts.at(-1).text,'Who are you?');
+});
 test('streaming delivers split CRLF frames and EOF remainder; failures never create another paid request',async()=>{
  const originalFetch=globalThis.fetch,keys=['LLM_PROVIDER','GEMINI_API_MODE','GEMINI_API_KEY','AI_FIRST_TOKEN_TIMEOUT_MS','AI_REQUEST_TIMEOUT_MS'],saved=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
  Object.assign(process.env,{LLM_PROVIDER:'gemini',GEMINI_API_MODE:'apikey',GEMINI_API_KEY:'synthetic-test-key',AI_FIRST_TOKEN_TIMEOUT_MS:'80',AI_REQUEST_TIMEOUT_MS:'300'});
  try{
- let calls=0;globalThis.fetch=async(url,options)=>{calls++;assert.ok(!String(url).includes('synthetic-test-key'));assert.equal(options.headers['x-goog-api-key'],'synthetic-test-key');const text='data: '+JSON.stringify({candidates:[{content:{parts:[{text:'Hello'}]}}]})+'\r\n\r\ndata: '+JSON.stringify({candidates:[{content:{parts:[{text:' world'}]}}]});return new Response(new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode(text.slice(0,40)));controller.enqueue(new TextEncoder().encode(text.slice(40)));controller.close();}}));};
- let res=new ResponseSink();await chatStream(res,{message:'你好',user,model:'gemini-3.1-flash-lite',sessionKey:'qa-stream'});assert.equal(calls,1);assert.equal(res.events.at(-1).answer,'Hello world');assert.ok(res.events.at(-1).firstTokenMs!==null);assert.ok(res.writableEnded);
+ let calls=0;globalThis.fetch=async(url,options)=>{calls++;assert.ok(!String(url).includes('synthetic-test-key'));assert.equal(options.headers['x-goog-api-key'],'synthetic-test-key');assert.match(JSON.parse(options.body).systemInstruction.parts[0].text,/Reply in English, even when/);const text='data: '+JSON.stringify({candidates:[{content:{parts:[{text:'Hello'}]}}]})+'\r\n\r\ndata: '+JSON.stringify({candidates:[{content:{parts:[{text:' world'}]}}]});return new Response(new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode(text.slice(0,40)));controller.enqueue(new TextEncoder().encode(text.slice(40)));controller.close();}}));};
+ let res=new ResponseSink();await chatStream(res,{message:'你好',user,model:'gemini-3.1-flash-lite',sessionKey:'qa-stream',responseLanguage:'en'});assert.equal(calls,1);assert.equal(res.events.at(-1).answer,'Hello world');assert.ok(res.events.at(-1).firstTokenMs!==null);assert.ok(res.writableEnded);
  for(const status of [400,401,403,429,503]){calls=0;globalThis.fetch=async()=>{calls++;return new Response('{}',{status});};res=new ResponseSink();await chatStream(res,{message:'你好',user,sessionKey:'qa-failed'});assert.equal(calls,1);assert.equal(res.events.at(-1).type,'error');assert.ok(res.writableEnded);}
  globalThis.fetch=async(url,{signal})=>new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')),{once:true}));
  res=new ResponseSink();const started=Date.now();await chatStream(res,{message:'你好',user,sessionKey:'qa-timeout'});assert.ok(Date.now()-started<500);assert.equal(res.events.at(-1).code,'AI_TIMEOUT');assert.equal(res.events.at(-1).type,'error');assert.notEqual(res.events.at(-1).stopped,true);

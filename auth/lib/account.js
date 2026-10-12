@@ -76,5 +76,12 @@ export function isTeacherRole(role) {
 
 export function accountKeywords(user) {
   const nickname = String(user?.nickname || user?.name || '').trim();
-  return [nickname, user?.role === 'student' ? '學生' : '教職員'].filter(Boolean);
+  return [...new Set([nickname, accountDepartment(user)].filter(Boolean))];
+}
+export function accountDepartment(user){return String(user?.department||'').trim()||(user?.role==='student'?'學生':'教職員');}
+export function validateDepartment(value){
+ if(typeof value!=='string')throw Object.assign(Error('Enter your department'),{status:400});
+ const department=value.normalize('NFKC').trim().replace(/ +/g,' ');
+ if(!department||department.length>40||/[\x00-\x1f\x7f]/.test(department))throw Object.assign(Error('Department must be 1–40 characters on one line'),{status:400});
+ return department;
 }

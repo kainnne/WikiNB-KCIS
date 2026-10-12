@@ -57,7 +57,7 @@ form.addEventListener('submit',async event=>{
 async function access(){
   const session=await fetchMe();teacher=session.authenticated&&isTeacherUser(session.user)?session.user:null;
   form.hidden=!teacher;el('upload-gate').hidden=!!teacher;
-  if(teacher)el('upload-author').textContent=teacher.nickname||teacher.name;
+  if(teacher)el('upload-author').textContent=[teacher.nickname||teacher.name,teacher.department].filter(Boolean).join(' · ');
 }
-document.addEventListener('wikinb:auth-change',event=>{teacher=event.detail?.loggedIn&&isTeacherUser(event.detail.user)?event.detail.user:null;form.hidden=!teacher;el('upload-gate').hidden=!!teacher;if(teacher)el('upload-author').textContent=teacher.nickname||teacher.name;});
+document.addEventListener('wikinb:auth-change',event=>{teacher=event.detail?.loggedIn&&isTeacherUser(event.detail.user)?event.detail.user:null;form.hidden=!teacher;el('upload-gate').hidden=!!teacher;if(teacher)el('upload-author').textContent=[teacher.nickname||teacher.name,teacher.department].filter(Boolean).join(' · ');});
 void access();
