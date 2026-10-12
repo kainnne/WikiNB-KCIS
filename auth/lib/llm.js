@@ -3,6 +3,7 @@
  */
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
+import { setTimeout as delay } from 'node:timers/promises';
 import fs from 'node:fs';
 import path from 'node:path';
 import {kcisInstructions,groundedContext,isAuthoredLessonRequest,isForumOverview} from './kcis-ai-context.js';
@@ -417,7 +418,12 @@ async function chatStreamGemini(res, { message, history, model, reasoningEffort,
   const startedAt = Date.now();
   const abort = new AbortController();
   let timeoutReason='',firstTokenMs=null;
-  const firstTimer=setTimeout(()=>{timeoutReason='AI took too long to start. Please try again.';abort.abort();},Number(process.env.AI_FIRST_TOKEN_TIMEOUT_MS||15000));
+  let firstTimer;
+  function waitForFirstToken(){
+    clearTimeout(firstTimer);
+    firstTimer=setTimeout(()=>{timeoutReason='AI took too long to start. Please try again.';abort.abort();},Number(process.env.AI_FIRST_TOKEN_TIMEOUT_MS||25000));
+  }
+  waitForFirstToken();
   const totalTimer=setTimeout(()=>{timeoutReason='AI response timed out. Please try again.';abort.abort();},Number(process.env.AI_REQUEST_TIMEOUT_MS||45000));
   const tick = setInterval(() => sseSend(res, { type: 'tick', elapsedMs: Date.now() - startedAt }), 1000);
 
@@ -462,18 +468,25 @@ async function chatStreamGemini(res, { message, history, model, reasoningEffort,
       streamUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(chosenModel)}:streamGenerateContent?alt=sse`;
     }
 
-    const upstream = await fetch(streamUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: abort.signal,
-    });
+    const request = {method:'POST',headers,body:JSON.stringify(body),signal:abort.signal};
+    let upstream;
+    for(let attempt=0;attempt<2;attempt++){
+      upstream=await fetch(streamUrl,request);
+      if(upstream.status!==503||attempt===1)break;
+      await upstream.body?.cancel();
+      // Retry only a rejected request, before any answer. Never restart a
+      // partially delivered stream or change models. The total deadline stays.
+      clearTimeout(firstTimer);
+      sseSend(res,{type:'status',code:'AI_RETRY',attempt:2,maxAttempts:2,message:'AI service is busy. Retrying once…'});
+      const retryDelay=Number(process.env.AI_BUSY_RETRY_DELAY_MS||1000);
+      await delay(Number.isFinite(retryDelay)?Math.min(3000,Math.max(10,retryDelay)):1000,undefined,{signal:abort.signal});
+      waitForFirstToken();
+    }
 
     if (!upstream.ok) {
       await upstream.body?.cancel();
-      // A failed stream must not silently start a second expensive request.
       const error=upstream.status===429?'AI quota reached. Please try again later.':upstream.status===503?'AI service is busy. Please try again.':'AI connection failed. Check the server configuration.';
-      throw new Error(error);
+      throw Object.assign(new Error(error),{code:upstream.status===503?'AI_BUSY':upstream.status===429?'AI_QUOTA':'AI_CONFIG',retryable:upstream.status===503});
     }
 
     const reader = upstream.body?.getReader();
@@ -486,6 +499,7 @@ async function chatStreamGemini(res, { message, history, model, reasoningEffort,
       const dataLine=block.split(/\r?\n/).filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('');
       if(!dataLine||dataLine==='[DONE]')return;
       let parsed;try{parsed=JSON.parse(dataLine);}catch{return;}
+      if(parsed.error)throw Object.assign(new Error('AI response was interrupted. Please try again.'),{code:'AI_INTERRUPTED',retryable:true});
       const piece=extractGeminiText(parsed);if(!piece)return;
       if(firstTokenMs===null){firstTokenMs=Date.now()-startedAt;clearTimeout(firstTimer);}
       answer+=piece;sseSend(res,{type:'delta',text:piece});
@@ -498,7 +512,7 @@ async function chatStreamGemini(res, { message, history, model, reasoningEffort,
       for(const block of blocks)consume(block);
     }
 
-    if (!answer.trim()) throw new Error('AI returned no answer. Please try again.');
+    if (!answer.trim()) throw Object.assign(new Error('AI returned no answer. Please try again.'),{code:'AI_EMPTY',retryable:true});
 
     sseSend(res, {
       type: 'done',
@@ -514,7 +528,7 @@ async function chatStreamGemini(res, { message, history, model, reasoningEffort,
     });
   } catch (err) {
     if (timeoutReason) {
-      sseSend(res,{type:'error',error:timeoutReason,code:'AI_TIMEOUT',elapsedMs:Date.now()-startedAt});
+      sseSend(res,{type:'error',error:timeoutReason,code:'AI_TIMEOUT',retryable:true,elapsedMs:Date.now()-startedAt});
     } else if (abort.signal.aborted || stoppedByUser) {
       sseSend(res, {
         type: 'done',
@@ -529,6 +543,8 @@ async function chatStreamGemini(res, { message, history, model, reasoningEffort,
       sseSend(res, {
         type: 'error',
         error: err?.message || 'Gemini 執行失敗',
+        code:err?.code||'AI_CONNECTION',
+        retryable:err?.retryable??true,
         elapsedMs: Date.now() - startedAt,
         model: chosenModel,
       });

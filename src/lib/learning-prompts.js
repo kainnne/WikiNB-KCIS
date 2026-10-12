@@ -21,6 +21,21 @@ const englishTexts={
  knowledge:"Help me build my AI knowledge using Zhu Xi's notes. First ask which tools I already use and what work I want to improve. Choose one suitable topic, explain it using examples from the notes and give me a small exercise. Distinguish additional general knowledge from the notes, and do not present guesses as the author's experience."
 };
 const chineseLabels={admin:'行政同仁學 AI',teacher:'教師同仁學 AI',media:'簡報、圖片與影片',forum:'AI 論壇有哪些內容？',knowledge:'補充 AI 知識'};
+const questions={
+ admin:{en:'I work in administration. Help me learn AI from the basics.','zh-TW':'我是行政同仁，想從基礎開始學 AI。'},
+ teacher:{en:"I'm a teacher. Help me learn AI from the basics.",'zh-TW':'我是教師，想從基礎開始學 AI。'},
+ media:{en:"I'd like to learn how to make slides, images and videos.",'zh-TW':'我想學簡報、圖片和影片製作。'},
+ forum:{en:"What's currently in AI Forum?",'zh-TW':'目前 AI 論壇有哪些文章與解決紀錄？'},
+ knowledge:{en:"Help me learn more about AI using Zhu Xi's notes.",'zh-TW':'請依朱璽的筆記幫我補充 AI 知識。'},
+};
 export function localizeLearningPrompt(prompt,language){
- return {...prompt,label:language==='zh-TW'?chineseLabels[prompt.id]:prompt.label,text:language==='en'?englishTexts[prompt.id]:prompt.text};
+ return {...prompt,label:language==='zh-TW'?chineseLabels[prompt.id]:prompt.label,text:language==='en'?englishTexts[prompt.id]:prompt.text,question:questions[prompt.id][language==='zh-TW'?'zh-TW':'en']};
 }
+const promptIcons={
+ admin:'<path d="M4 21V3h10v18m0-13h6v13M2 21h20M7 7h4m-4 4h4m-4 4h4m5-3h2m-2 4h2"/>',
+ teacher:'<path d="m2 8 10-5 10 5-10 5zm4 3v6c4 3 8 3 12 0v-6m4-3v8"/>',
+ media:'<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18M7 6.5h.1M10 6.5h.1M7 13h5m-5 3h9"/>',
+ forum:'<path d="M3 4h13v9H8l-4 3v-3H3zm8 9v5h5l4 3v-3h1V9h-5"/>',
+ knowledge:'<path d="M3 4h7a2 2 0 0 1 2 2v15a4 4 0 0 0-4-2H3zm18 0h-7a2 2 0 0 0-2 2v15a4 4 0 0 1 4-2h5z"/>',
+};
+export function learningPromptIcon(id){return `<span class="learning-prompt-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${promptIcons[id]||promptIcons.knowledge}</svg></span>`;}

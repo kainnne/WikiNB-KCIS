@@ -1,0 +1,4 @@
+---
+const base=import.meta.env.BASE_URL;
+---
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>WikiNB KCIS</title></head><body><a href={base+'search'}>WikiNB</a><script is:inline define:vars={{base}}>const params=new URLSearchParams(location.search);const file=params.get('file');const target=base+(file?'note?'+new URLSearchParams({file}):'search'+(params.get('q')?'?'+new URLSearchParams({q:params.get('q')}):''));location.replace(target);</script></body></html>

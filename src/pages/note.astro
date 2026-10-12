@@ -29,9 +29,10 @@ const base = import.meta.env.BASE_URL;
           <button id="note-download-source" type="button" class="kc-btn-secondary py-2 text-sm" data-i18n="note.downloadOriginal">Download original</button>
         </div>
       </section>
+      <div id="note-document-downloads" class="mb-5 hidden flex-wrap gap-2"><button id="note-document-original" type="button" class="kc-btn-secondary" data-i18n="document.original">Download original</button><button id="note-document-markdown" type="button" class="kc-btn-secondary" data-i18n="document.markdown">Download Markdown</button></div>
       <div id="note-body" class="kc-card kc-core-card wiki-content p-6 md:p-10"></div>
       <div class="mt-8 flex flex-wrap gap-3">
-        <a href={`${base}search`} class="kc-btn-ghost" data-i18n="wiki.library">← Library</a>
+        <a href={`${base}search`} class="kc-btn-ghost">← WikiNB</a>
         <a href={`${base}my-notes`} class="kc-btn-ghost" data-i18n="home.myNotes">My documents</a>
       </div>
     </article>
@@ -50,6 +51,7 @@ const base = import.meta.env.BASE_URL;
   } from '../scripts/auth-client.js';
   import { loginHrefWithNext, markdownToHtml } from '../scripts/md-render.js';
   import { t } from '../scripts/i18n.js';
+  import {readSchoolDocuments,downloadSchoolDocument} from '../scripts/shared-documents.js';
 
   function pageBase() {
     return document.documentElement.dataset.base || '/WikiNB-KCIS/';
@@ -59,6 +61,7 @@ const base = import.meta.env.BASE_URL;
   const teacherId = params.get('teacherId') || '';
   const subjectId = params.get('subjectId') || '';
   const slug = params.get('slug') || '';
+  const fileId=params.get('file')||'';
 
   const loading = document.getElementById('note-loading');
   const gate = document.getElementById('note-gate');
@@ -66,6 +69,33 @@ const base = import.meta.env.BASE_URL;
   const article = document.getElementById('note-article');
   const loginLink = document.getElementById('note-login-link');
   let currentSource = null;
+  let sharedDocument=null;
+  let sharedRevision=0;
+  function renderDocumentKeywords(){
+    const tags=document.getElementById('note-tags');tags.replaceChildren();
+    for(const word of sharedDocument?.keywords||[]){const tag=document.createElement('span');tag.className='tag-keyword';tag.textContent=word==='教職員'?t('account.staff'):word==='學生'?t('account.student'):word;tags.append(tag);}
+  }
+  document.addEventListener('wikinb:locale-change',()=>{if(sharedDocument){renderDocumentKeywords();if(!sharedDocument.markdown)document.getElementById('note-body').textContent=t('document.noMarkdown');}});
+  async function loadSharedDocument(){
+    const revision=++sharedRevision,data=await readSchoolDocuments('/files/'+encodeURIComponent(fileId));if(revision!==sharedRevision)return;sharedDocument=data;
+    document.title=(data.title||data.filename)+' · WikiNB KCIS';
+    document.getElementById('note-title').textContent=data.title||data.filename;
+    renderDocumentKeywords();
+    document.getElementById('note-meta').textContent=data.filename;
+    const body=document.getElementById('note-body');body.innerHTML=markdownToHtml(String(data.markdown||'').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/,''),{base:pageBase(),linkifyWiki:false});
+    const {getAuthUrl}=await import('../scripts/auth-client.js');
+    body.querySelectorAll('a[href],img[src]').forEach(node=>{const attribute=node.tagName==='IMG'?'src':'href',value=node.getAttribute(attribute);if(value?.startsWith('/api/library/'))node.setAttribute(attribute,getAuthUrl()+value);});
+    if(!data.markdown)body.textContent=t('document.noMarkdown');
+    document.getElementById('note-document-downloads').classList.remove('hidden');document.getElementById('note-document-downloads').classList.add('flex');document.getElementById('note-document-markdown').hidden=!data.markdown;
+    loading.classList.add('hidden');gate.classList.add('hidden');article.classList.remove('hidden');
+  }
+  for(const [id,converted] of [['note-document-original',false],['note-document-markdown',true]])document.getElementById(id).addEventListener('click',async event=>{const button=event.currentTarget;button.disabled=true;try{await downloadSchoolDocument(fileId,sharedDocument.filename,converted);}catch(error){showError(error.message);}finally{button.disabled=false;}});
+  window.addEventListener('kcis:account-updated',event=>{if(fileId&&sharedDocument&&event.detail?.user)event.detail.waitUntil?.(loadSharedDocument());});
+  document.addEventListener('wikinb:auth-change',event=>{
+    if(!fileId)return;
+    if(!event.detail?.loggedIn){sharedRevision++;sharedDocument=null;article.classList.add('hidden');document.getElementById('note-body').replaceChildren();document.getElementById('note-tags').replaceChildren();loading.classList.add('hidden');gate.classList.remove('hidden');}
+    else if(!sharedDocument)void loadSharedDocument().catch(error=>{if(![401,403].includes(error.status))showError(error.message);});
+  });
 
   function renderSourceMeta() {
     const meta = document.getElementById('note-source-meta');
@@ -106,6 +136,11 @@ const base = import.meta.env.BASE_URL;
   }
 
   (async () => {
+    if(fileId){
+      if(!/^[a-f0-9-]{36}$/.test(fileId)){showError('Document not found');return;}
+      try{await loadSharedDocument();}catch(error){if([401,403].includes(error.status)){loading.classList.add('hidden');gate.classList.remove('hidden');}else showError(error.message);}
+      return;
+    }
     if (!subjectId || !slug) {
       showError(t('note.missingSubject'));
       return;

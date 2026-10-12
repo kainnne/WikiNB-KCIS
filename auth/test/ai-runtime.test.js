@@ -36,14 +36,34 @@ test('chosen reply language overrides question language without changing source 
  assert.equal(english.contents.at(-1).parts.at(-1).text,'你是誰');
  assert.equal(chinese.contents.at(-1).parts.at(-1).text,'Who are you?');
 });
-test('streaming delivers split CRLF frames and EOF remainder; failures never create another paid request',async()=>{
+test('streaming delivers split CRLF frames and EOF remainder; quota/configuration failures never retry',async()=>{
  const originalFetch=globalThis.fetch,keys=['LLM_PROVIDER','GEMINI_API_MODE','GEMINI_API_KEY','AI_FIRST_TOKEN_TIMEOUT_MS','AI_REQUEST_TIMEOUT_MS'],saved=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
  Object.assign(process.env,{LLM_PROVIDER:'gemini',GEMINI_API_MODE:'apikey',GEMINI_API_KEY:'synthetic-test-key',AI_FIRST_TOKEN_TIMEOUT_MS:'80',AI_REQUEST_TIMEOUT_MS:'300'});
  try{
  let calls=0;globalThis.fetch=async(url,options)=>{calls++;assert.ok(!String(url).includes('synthetic-test-key'));assert.equal(options.headers['x-goog-api-key'],'synthetic-test-key');assert.match(JSON.parse(options.body).systemInstruction.parts[0].text,/Reply in English, even when/);const text='data: '+JSON.stringify({candidates:[{content:{parts:[{text:'Hello'}]}}]})+'\r\n\r\ndata: '+JSON.stringify({candidates:[{content:{parts:[{text:' world'}]}}]});return new Response(new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode(text.slice(0,40)));controller.enqueue(new TextEncoder().encode(text.slice(40)));controller.close();}}));};
  let res=new ResponseSink();await chatStream(res,{message:'你好',user,model:'gemini-3.1-flash-lite',sessionKey:'qa-stream',responseLanguage:'en'});assert.equal(calls,1);assert.equal(res.events.at(-1).answer,'Hello world');assert.ok(res.events.at(-1).firstTokenMs!==null);assert.ok(res.writableEnded);
- for(const status of [400,401,403,429,503]){calls=0;globalThis.fetch=async()=>{calls++;return new Response('{}',{status});};res=new ResponseSink();await chatStream(res,{message:'你好',user,sessionKey:'qa-failed'});assert.equal(calls,1);assert.equal(res.events.at(-1).type,'error');assert.ok(res.writableEnded);}
+ for(const status of [400,401,403,429]){calls=0;globalThis.fetch=async()=>{calls++;return new Response('{}',{status});};res=new ResponseSink();await chatStream(res,{message:'你好',user,sessionKey:'qa-failed'});assert.equal(calls,1);assert.equal(res.events.at(-1).type,'error');assert.equal(res.events.at(-1).retryable,false);assert.ok(res.writableEnded);}
  globalThis.fetch=async(url,{signal})=>new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')),{once:true}));
  res=new ResponseSink();const started=Date.now();await chatStream(res,{message:'你好',user,sessionKey:'qa-timeout'});assert.ok(Date.now()-started<500);assert.equal(res.events.at(-1).code,'AI_TIMEOUT');assert.equal(res.events.at(-1).type,'error');assert.notEqual(res.events.at(-1).stopped,true);
+ }finally{globalThis.fetch=originalFetch;for(const k of keys)if(saved[k]===undefined)delete process.env[k];else process.env[k]=saved[k];}
+});
+test('503 rejection retries the identical question once; repeated overload stops with a recoverable error',async()=>{
+ const originalFetch=globalThis.fetch,keys=['LLM_PROVIDER','GEMINI_API_MODE','GEMINI_API_KEY','AI_BUSY_RETRY_DELAY_MS','AI_FIRST_TOKEN_TIMEOUT_MS','AI_REQUEST_TIMEOUT_MS'],saved=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
+ Object.assign(process.env,{LLM_PROVIDER:'gemini',GEMINI_API_MODE:'apikey',GEMINI_API_KEY:'synthetic-test-key',AI_BUSY_RETRY_DELAY_MS:'10',AI_FIRST_TOKEN_TIMEOUT_MS:'100',AI_REQUEST_TIMEOUT_MS:'300'});
+ try{
+  const requests=[];globalThis.fetch=async(url,options)=>{requests.push({url,body:options.body});if(requests.length===1)return new Response('{}',{status:503});return new Response('data: '+JSON.stringify({candidates:[{content:{parts:[{text:'第一單元，先從聊天開始。'}]}}]})+'\n\n');};
+  let res=new ResponseSink();await chatStream(res,{message:'我是行政同仁，想學AI',user,responseLanguage:'zh-TW',sessionKey:'qa-busy-retry'});
+  assert.equal(requests.length,2);assert.deepEqual(requests[0],requests[1]);assert.equal(res.events.filter(x=>x.code==='AI_RETRY').length,1);assert.equal(res.events.at(-1).ok,true);assert.match(res.events.at(-1).answer,/第一單元/);
+  let calls=0;globalThis.fetch=async()=>{calls++;return new Response('{}',{status:503});};res=new ResponseSink();await chatStream(res,{message:'我是行政同仁，想學AI',user,sessionKey:'qa-still-busy'});
+  assert.equal(calls,2);assert.equal(res.events.at(-1).code,'AI_BUSY');assert.equal(res.events.at(-1).retryable,true);assert.ok(!res.events.some(x=>x.type==='done'));assert.ok(res.writableEnded);
+ }finally{globalThis.fetch=originalFetch;for(const k of keys)if(saved[k]===undefined)delete process.env[k];else process.env[k]=saved[k];}
+});
+test('retry keeps the total deadline; stop during backoff and interruption after a delta never restart generation',async()=>{
+ const originalFetch=globalThis.fetch,keys=['LLM_PROVIDER','GEMINI_API_MODE','GEMINI_API_KEY','AI_BUSY_RETRY_DELAY_MS','AI_FIRST_TOKEN_TIMEOUT_MS','AI_REQUEST_TIMEOUT_MS'],saved=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
+ Object.assign(process.env,{LLM_PROVIDER:'gemini',GEMINI_API_MODE:'apikey',GEMINI_API_KEY:'synthetic-test-key',AI_BUSY_RETRY_DELAY_MS:'100',AI_FIRST_TOKEN_TIMEOUT_MS:'100',AI_REQUEST_TIMEOUT_MS:'30'});
+ try{
+  let calls=0;globalThis.fetch=async()=>{calls++;return new Response('{}',{status:503});};let res=new ResponseSink();await chatStream(res,{message:'你好',user,sessionKey:'qa-retry-deadline'});assert.equal(calls,1);assert.equal(res.events.at(-1).code,'AI_TIMEOUT');
+  process.env.AI_REQUEST_TIMEOUT_MS='300';calls=0;res=new ResponseSink();globalThis.fetch=async()=>{calls++;setTimeout(()=>res.emit('close'),20);return new Response('{}',{status:503});};await chatStream(res,{message:'你好',user,sessionKey:'qa-stop-backoff'});assert.equal(calls,1);assert.equal(res.events.at(-1).stopped,true);
+  calls=0;globalThis.fetch=async()=>{calls++;return new Response('data: '+JSON.stringify({candidates:[{content:{parts:[{text:'Partial answer'}]}}]})+'\n\ndata: '+JSON.stringify({error:{code:503}})+'\n\n');};res=new ResponseSink();await chatStream(res,{message:'你好',user,sessionKey:'qa-interrupted'});assert.equal(calls,1);assert.ok(res.events.some(x=>x.type==='delta'));assert.equal(res.events.at(-1).code,'AI_INTERRUPTED');assert.ok(!res.events.some(x=>x.type==='done'));
  }finally{globalThis.fetch=originalFetch;for(const k of keys)if(saved[k]===undefined)delete process.env[k];else process.env[k]=saved[k];}
 });

@@ -86,7 +86,7 @@ export function createWikiSearch(initialIndex, options = {}) {
     const subject = subjectLabel(page);
     const href = pageHref(page);
     const canExpand = hasSessionHint() || authed;
-    const keywordsHtml = [
+    const keywordsHtml = page.slug.startsWith('documents/')?(page.keywords||[]).map(word=>`<span class="tag-keyword">${escapeHtml(({教職員:'Staff',學生:'Student'})[word]||word)}</span>`).join(''):[
       page.teacher ? `<span class="tag-keyword">${escapeHtml(page.teacher)}</span>` : '',
       subject
         ? `<span class="tag-keyword" data-locale-text data-zh="${escapeHtml(page.subject)}" data-en="${escapeHtml(page.subjectEn || page.subject)}">${escapeHtml(subject)}</span>`
@@ -121,7 +121,7 @@ export function createWikiSearch(initialIndex, options = {}) {
             <a href="${escapeHtml(href)}" class="wiki-title-link block font-display text-lg font-bold text-kc-blue-deep transition hover:text-kc-purple md:text-xl">
               ${escapeHtml(page.title)}
             </a>
-            <p class="mt-0.5 text-xs text-kc-muted/70">${escapeHtml(page.slug.split('/').pop() || page.slug)}</p>
+            <p class="mt-0.5 text-xs text-kc-muted/70">${escapeHtml(page.displayFilename || page.slug.split('/').pop() || page.slug)}</p>
             <p class="mt-1 line-clamp-2 text-sm text-kc-muted">${escapeHtml(page.description || '')}</p>
           </div>
         </div>

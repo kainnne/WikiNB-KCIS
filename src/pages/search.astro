@@ -36,8 +36,11 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
 
   <script>
     import { createWikiSearch } from '../scripts/wiki-search.js';
+    import {schoolDocumentsIndex} from '../lib/wiki-documents.js';
+    import {readSchoolDocuments} from '../scripts/shared-documents.js';
     import {
       fetchWikiCatalog,
+      fetchMe,
       hasSessionHint,
       isTeacherUser,
       listAllWikiFiles,
@@ -69,6 +72,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
         bySlug.set(p.slug, { ...p, live: false, html: '', bodyText: p.bodyText || '' });
       }
       for (const p of livePages || []) {
+        if(p.href&&p.slug.startsWith('documents/')){bySlug.set(p.slug,p);continue;}
         const noteSlug = p.noteSlug || String(p.slug || '').split('/').pop();
         const href = notePageHref({
           teacherId: p.teacherId,
@@ -90,11 +94,20 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
       );
     }
 
-    async function loadLiveCatalog(user) {
+    let catalogKey='',catalogGeneration=0,catalogLoading=null;
+    function loadLiveCatalog(user) {
+      const key=[user.email,user.role,user.updatedAt].join('|');
+      if(key===catalogKey)return catalogLoading||Promise.resolve();
+      catalogKey=key;const generation=++catalogGeneration;
+      catalogLoading=loadCatalog(user,generation);return catalogLoading;
+    }
+    async function loadCatalog(user,generation) {
       let live = [];
+      const school=await readSchoolDocuments().catch(()=>null);
+      if(school)live.push(...schoolDocumentsIndex(school.files,school.categories,pageBase()));
       try {
         const cat = await fetchWikiCatalog();
-        live = cat.files || [];
+        live.push(...(cat.files||[]));
       } catch {
         /* Auth 離線：維持靜態目錄即可 */
       }
@@ -128,23 +141,15 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
         }
       }
 
-      if (!live.length) return;
+      if(generation!==catalogGeneration)return;
       setIndex(mergeLive(staticIndex, live));
       runSearch();
-      if (metaEl && !String(input?.value || '').trim()) {
-        metaEl.textContent = `${metaEl.textContent || ''} · live`;
-      }
     }
 
     async function initAuthAndCatalog() {
-      // 無 token 提示：訪客模式，不打 Auth（避免卡在確認登入）
-      if (!hasSessionHint()) {
-        setAuthed(false);
-        runSearch();
-        return;
-      }
-      const session = await requireLogin({ timeoutMs: 3500 });
+      const session = await fetchMe();
       if (!session.authenticated) {
+        catalogGeneration++;catalogKey='';setIndex(staticIndex);
         setAuthed(false);
         runSearch();
         return;
@@ -163,8 +168,11 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
     document.addEventListener('wikinb:auth-change', (ev) => {
       const loggedIn = Boolean(ev.detail?.loggedIn);
       setAuthed(loggedIn);
+      if(loggedIn)void loadLiveCatalog(ev.detail.user);
+      else{catalogGeneration++;catalogKey='';setIndex(staticIndex);}
       runSearch();
     });
+    window.addEventListener('kcis:account-updated',event=>{if(event.detail?.user)event.detail.waitUntil?.(loadLiveCatalog(event.detail.user));});
   </script>
 
   <script id="search-data" type="application/json" set:html={JSON.stringify(searchIndex)} />

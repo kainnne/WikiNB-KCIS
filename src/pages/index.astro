@@ -12,7 +12,7 @@ const recent = pages.slice(0, 6);
 <BaseLayout title="WikiNB" description={sites.brand.tagline}>
   <section class="school-home-hero">
     <h1 class="font-display text-4xl font-extrabold tracking-tight sm:text-5xl"><span class="brand-gradient-text">WikiNB</span></h1>
-    <a href={`${import.meta.env.BASE_URL}codex`} class="kc-btn-ai home-ai-entry" data-i18n="nav.gemini">KCIS AI</a>
+    <a href={`${import.meta.env.BASE_URL}codex`} class="home-ai-entry" aria-label="KCIS AI"><span data-i18n="nav.gemini">KCIS AI</span><svg class="home-ai-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
     <div class="home-search-wrap"><HomeSearch /></div>
   </section>
 
@@ -42,5 +42,22 @@ const recent = pages.slice(0, 6);
 </BaseLayout>
 
 <style>
-  .school-home-hero{display:flex;align-items:center;flex-direction:column;gap:28px;padding:40px 0 48px;text-align:center}.home-ai-entry{min-width:172px;padding:13px 30px;font-size:20px}.home-search-wrap{width:min(100%,600px);margin-top:4px}@media(max-width:640px){.school-home-hero{padding:24px 0 36px;gap:24px}.home-ai-entry{font-size:18px}}
+  .school-home-hero{display:flex;align-items:center;flex-direction:column;gap:28px;padding:40px 0 48px;text-align:center}.home-search-wrap{width:min(100%,600px);margin-top:4px}
+  .home-ai-entry{--light-x:50%;--light-y:30%;--tilt-x:0deg;--tilt-y:0deg;position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;gap:20px;min-width:230px;min-height:68px;padding:16px 28px;border:1px solid #ffffff75;border-radius:24px;color:#fff;background:linear-gradient(125deg,var(--kc-blue),#5550a4 55%,var(--kc-purple));box-shadow:inset 0 1px #ffffff50,0 6px 0 #40367922,0 14px 35px #4a429b26;font-family:Nunito,'Noto Sans TC',sans-serif;font-size:23px;font-weight:800;letter-spacing:.015em;transform:perspective(600px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));transition:transform .2s,border-color .2s,box-shadow .2s}
+  .home-ai-entry::before{content:'';position:absolute;inset:-7px;z-index:-1;border:1px solid #746acb38;border-radius:31px;background:linear-gradient(125deg,#779cdc10,#ae83d61a);box-shadow:0 0 30px #776bc01c;transition:inset .2s,border-color .2s,box-shadow .2s}
+  .home-ai-entry::after{content:'';position:absolute;inset:0;z-index:-1;border-radius:inherit;background:radial-gradient(circle at var(--light-x) var(--light-y),#ffffff30,transparent 65%);opacity:.65;transition:opacity .2s}
+  .home-ai-arrow{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+  .home-ai-entry:hover{transform:perspective(600px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) translateY(-3px);border-color:#ffffffb5;box-shadow:inset 0 1px #ffffff70,0 9px 0 #40367918,0 20px 42px #4a429b36}.home-ai-entry:hover::before{inset:-9px;border-color:#8f7fcb70;box-shadow:0 0 36px #776bc030}.home-ai-entry:hover::after{opacity:1}.home-ai-entry:hover .home-ai-arrow{transform:translateX(3px)}
+  .home-ai-entry:active{transform:translateY(2px) scale(.98);box-shadow:inset 0 2px 5px #30225325,0 2px 0 #40367922,0 7px 18px #4a429b22}.home-ai-entry:focus-visible{outline:3px solid #969ce0;outline-offset:11px;box-shadow:inset 0 1px #ffffff70,0 6px 0 #40367918,0 16px 42px #4a429b38}.home-ai-entry:focus-visible::before{border-color:#8f7fcb90;box-shadow:0 0 36px #776bc038}
+  @media(max-width:640px){.school-home-hero{padding:24px 0 36px;gap:24px}.home-ai-entry{min-width:214px;min-height:64px;font-size:21px}}
+  @media(prefers-reduced-motion:reduce){.home-ai-entry,.home-ai-entry::before,.home-ai-entry::after,.home-ai-arrow{transition:none;transform:none!important}}
 </style>
+<script>
+  const entry=document.querySelector('.home-ai-entry');
+  const motion=window.matchMedia('(prefers-reduced-motion: reduce)'),pointer=window.matchMedia('(hover: hover) and (pointer: fine)');
+  entry?.addEventListener('pointermove',event=>{
+    if(motion.matches||!pointer.matches)return;const rect=entry.getBoundingClientRect(),x=(event.clientX-rect.left)/rect.width,y=(event.clientY-rect.top)/rect.height;
+    entry.style.setProperty('--light-x',`${x*100}%`);entry.style.setProperty('--light-y',`${y*100}%`);entry.style.setProperty('--tilt-x',`${(0.5-y)*5}deg`);entry.style.setProperty('--tilt-y',`${(x-0.5)*5}deg`);
+  });
+  entry?.addEventListener('pointerleave',()=>{for(const name of ['--light-x','--light-y','--tilt-x','--tilt-y'])entry.style.removeProperty(name);});
+</script>

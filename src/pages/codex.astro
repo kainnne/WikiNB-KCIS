@@ -17,7 +17,10 @@ const base = import.meta.env.BASE_URL;
         </h1>
       </div>
 
-      <button id="ai-language-change" type="button" class="ai-language-change" aria-label="Language">Language <span id="ai-language-current">EN / 中文</span></button>
+      <div class="ai-window-controls">
+        <button id="ai-language-change" type="button" class="ai-language-change" aria-label="Language">Language <span id="ai-language-current">EN / 中文</span></button>
+        <button id="ai-expand" type="button" class="ai-expand" aria-label="Expand chat" title="Expand chat" aria-pressed="false"><svg data-expand-icon viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><svg data-restore-icon viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M3 8h5V3m8 0v5h5M8 21v-5H3m18 0h-5v5"/></svg></button>
+      </div>
     </div>
     <dialog id="ai-language-dialog" class="ai-language-dialog" aria-labelledby="ai-language-title">
       <h2 id="ai-language-title">Language</h2>
@@ -38,17 +41,17 @@ const base = import.meta.env.BASE_URL;
 
     <div id="codex-terminal" class="codex-terminal hidden">
       <div id="codex-output" class="codex-output">
-        <div class="codex-line codex-line-assistant">
+        <div id="codex-intro" class="codex-line codex-line-assistant">
           <div class="codex-bubble codex-md wiki-content">
             <p data-i18n="gemini.welcome">I'm KCIS AI. I can help you find, summarize and explain school documents and AI Forum solutions.</p>
             <p class="text-sm text-kc-muted" data-i18n="gemini.firstReplyNote">Your first AI reply may take about 10–15 seconds.</p>
           </div>
         </div>
+        <section class="learning-prompts" aria-label="Suggested prompts">
+          <div id="learning-prompts-list" class="learning-prompts-list"></div>
+          <button id="learning-prompts-reset" type="button" class="ai-reset" aria-label="Refresh options"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.1 6.4 M20 4v7h-7"/></svg></button>
+        </section>
       </div>
-      <section class="learning-prompts" aria-label="Suggested prompts">
-        <div class="learning-prompt-heading"><span data-ai-copy="prompts">Try a prompt</span><button id="learning-prompts-reset" type="button" class="ai-reset" aria-label="Show two different prompts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M19.4 12a7.5 7.5 0 1 0-2 5.5"/></svg><span data-ai-copy="reset">Reset</span></button></div>
-        <div id="learning-prompts-list" class="learning-prompts-list"></div>
-      </section>
       <form id="codex-form" class="codex-input-row">
 
         <input
@@ -67,7 +70,8 @@ const base = import.meta.env.BASE_URL;
 </BaseLayout>
 
 <script>
-  import {pickLearningPrompts,localizeLearningPrompt} from '../lib/learning-prompts.js';
+  import {pickLearningPrompts,localizeLearningPrompt,learningPromptIcon} from '../lib/learning-prompts.js';
+  import {chatMessage,completedChatHistory} from '../lib/chat-recovery.js';
   import { uiError } from '../scripts/i18n.js';
   import en from '../locales/en.json';
   import zh from '../locales/zh-TW.json';
@@ -89,8 +93,18 @@ const base = import.meta.env.BASE_URL;
   const sendBtn = document.getElementById('codex-send');
   const stopBtn = document.getElementById('codex-stop');
   const languageDialog = document.getElementById('ai-language-dialog');
+  const promptPanel=document.querySelector('.learning-prompts');
+  const aiPage=document.querySelector('.codex-page'),expandButton=document.getElementById('ai-expand');
+  let expanded=false;
+  function updateExpandControl(){
+    const label=t(expanded?'gemini.restore':'gemini.expand');expandButton.setAttribute('aria-label',label);expandButton.title=label;expandButton.setAttribute('aria-pressed',String(expanded));
+    expandButton.querySelector('[data-expand-icon]').toggleAttribute('hidden',expanded);expandButton.querySelector('[data-restore-icon]').toggleAttribute('hidden',!expanded);
+  }
+  function setExpanded(value){expanded=value;aiPage.classList.toggle('is-fullscreen',expanded);document.documentElement.classList.toggle('kcis-ai-fullscreen',expanded);updateExpandControl();}
+  expandButton.addEventListener('click',()=>setExpanded(!expanded));
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&expanded&&!document.querySelector('dialog[open]')){setExpanded(false);expandButton.focus();}});
   let responseLanguage = null;
-  const extraCopy={en:{prompts:'Try a prompt',reset:'Reset'},'zh-TW':{prompts:'推薦提問',reset:'換一組','gemini.welcome':'我是 KCIS AI，可以協助你查找、整理校內文件與 AI 論壇的解決紀錄。','gemini.firstReplyNote':'第一次 AI 回覆可能需要約 10–15 秒。'}};
+  const extraCopy={en:{},'zh-TW':{'gemini.welcome':'我是 KCIS AI，可以協助你查找、整理校內文件與 AI 論壇的解決紀錄。','gemini.firstReplyNote':'第一次 AI 回覆可能需要約 10–15 秒。'}};
   function t(key,vars={}){
     const language=responseLanguage||'en';let text=extraCopy[language][key]||(language==='zh-TW'?zh[key]:en[key])||en[key]||key;
     for(const [name,value] of Object.entries(vars))text=text.replaceAll(`{${name}}`,String(value));return text;
@@ -98,12 +112,12 @@ const base = import.meta.env.BASE_URL;
   function applyConversationLanguage(){
     document.querySelector('.codex-page')?.setAttribute('lang',responseLanguage);
     document.querySelectorAll('.codex-page [data-i18n]').forEach(element=>element.textContent=t(element.getAttribute('data-i18n')));
-    document.querySelectorAll('[data-ai-copy]').forEach(element=>element.textContent=t(element.getAttribute('data-ai-copy')));
     input.placeholder=t('gemini.placeholder');input.setAttribute('aria-label',t('gemini.placeholder'));
     for(const [button,key] of [[sendBtn,'gemini.send'],[stopBtn,'gemini.stop']]){button.setAttribute('aria-label',t(key));button.title=t(key);}
-    document.getElementById('learning-prompts-reset').setAttribute('aria-label',responseLanguage==='en'?'Show two different prompts':'換兩個推薦提問');
+    document.getElementById('learning-prompts-reset').setAttribute('aria-label',responseLanguage==='en'?'Refresh options':'更新選項');
     document.getElementById('ai-language-current').textContent=responseLanguage==='en'?'EN':'中文';
     resetLearningPrompts();
+    updateExpandControl();
   }
   function askLanguage(){if(!languageDialog.open)languageDialog.showModal();}
   languageDialog.addEventListener('cancel',event=>event.preventDefault());
@@ -117,7 +131,7 @@ const base = import.meta.env.BASE_URL;
   function resetLearningPrompts(){
     const container=document.getElementById('learning-prompts-list');if(!container)return;
     const pair=pickLearningPrompts(selectedPrompts);selectedPrompts=pair.map(item=>item.id);container.replaceChildren();
-    for(const item of pair){const prompt=localizeLearningPrompt(item,responseLanguage||'en');const button=document.createElement('button');button.type='button';button.className='learning-prompt';button.setAttribute('aria-label',prompt.label);const label=document.createElement('span');label.textContent=prompt.label;button.append(label);button.title=prompt.text;button.onclick=()=>{if(running)return;input.value=prompt.text;input.focus();};container.append(button);}
+    for(const item of pair){const prompt=localizeLearningPrompt(item,responseLanguage||'en');const button=document.createElement('button');button.type='button';button.className='learning-prompt';button.setAttribute('aria-label',prompt.label);button.insertAdjacentHTML('afterbegin',learningPromptIcon(item.id));const label=document.createElement('span');label.textContent=prompt.label;button.append(label);button.onclick=()=>{if(running)return;input.value='';void sendMessage(prompt.text,null,prompt.question);};container.append(button);}
   }
   document.getElementById('learning-prompts-reset')?.addEventListener('click',resetLearningPrompts);
   resetLearningPrompts();
@@ -127,6 +141,7 @@ const base = import.meta.env.BASE_URL;
   let fixedModel = 'gemini-3.1-flash-lite';
   /** @type {{ role: string, content: string }[]} */
   let chatHistory = [];
+  let failedAttempt = null;
 
 
   function pageBase() {
@@ -168,6 +183,7 @@ const base = import.meta.env.BASE_URL;
       if (bubble) bubble.textContent = `${sec}s`;
     }, 1000);
     return {
+      line,
       stop() {
         clearInterval(id);
         const sec = Math.floor((Date.now() - startedAt) / 1000);
@@ -189,6 +205,7 @@ const base = import.meta.env.BASE_URL;
     if (sendBtn) sendBtn.disabled = isRunning;
     document.getElementById('ai-language-change').disabled=isRunning;
     document.querySelectorAll('.learning-prompts button').forEach(button=>button.disabled=isRunning);
+    document.querySelectorAll('.codex-retry').forEach(button=>button.disabled=isRunning);
     if (stopBtn) {
       stopBtn.disabled = !isRunning;
       stopBtn.hidden = !isRunning;
@@ -206,12 +223,6 @@ const base = import.meta.env.BASE_URL;
       appendLine(uiError(err,t('gemini.connectFail')), 'error');
     }
   }
-
-  function onLocaleChange() {
-    if(responseLanguage)applyConversationLanguage();
-  }
-
-  // Interface language changes do not reset the AI response language or prompt pair.
 
   let initialized = false;
   let initializing = false;
@@ -257,14 +268,14 @@ const base = import.meta.env.BASE_URL;
     abortController?.abort();
   });
 
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  async function sendMessage(msg,retry=null,displayMessage=msg){
     if (running || !responseLanguage) return;
-    const msg = input?.value?.trim();
     if (!msg) return;
-
-    appendLine(msg, 'user');
-    input.value = '';
+    failedAttempt?.button?.remove();failedAttempt=null;
+    retry?.errorLine?.remove();retry?.timerLine?.remove();
+    promptPanel.hidden=true;
+    const userLine=retry?.userLine||appendLine(displayMessage,'user');
+    const requestHistory=retry?.history||chatHistory.slice(-16);
 
     abortController = new AbortController();
     setRunning(true);
@@ -291,7 +302,7 @@ const base = import.meta.env.BASE_URL;
         msg,
         (ev) => {
           if (ev.type === 'status' || ev.type === 'event') {
-            progressBubble.textContent = uiError({message:ev.message || ev.summary},t('gemini.working'));
+            progressBubble.textContent = chatMessage(ev.code,responseLanguage,ev.message==='Connecting…'?chatMessage('connecting',responseLanguage):uiError({message:ev.message || ev.summary},t('gemini.working')));
           } else if (ev.type === 'delta' && ev.text) {
             progress.hidden=true;
             liveText += ev.text;
@@ -303,7 +314,7 @@ const base = import.meta.env.BASE_URL;
           model: fixedModel,
           reasoningEffort: 'default',
           signal: abortController.signal,
-          history: chatHistory.slice(-16),
+          history: requestHistory,
           responseLanguage,
         },
       );
@@ -311,29 +322,39 @@ const base = import.meta.env.BASE_URL;
       timer.stop();
       progress.remove();
       const finalText = result.answer || liveText || t('gemini.noResponse');
-      chatHistory.push({ role: 'user', content: msg });
-      if (!result.stopped) chatHistory.push({ role: 'assistant', content: finalText });
-      if (chatHistory.length > 24) chatHistory = chatHistory.slice(-24);
+      chatHistory=completedChatHistory(chatHistory,msg,result);
 
       liveWrap.className = `codex-line ${result.stopped ? 'codex-line-system' : 'codex-line-assistant'}`;
       setBubbleText(liveBubble, finalText, result.stopped ? 'system' : 'assistant');
-      appendLine(t('gemini.done', { time: formatElapsed(result.elapsedMs || 0) }), 'system');
+      if(!result.stopped)appendLine(t('gemini.done', { time: formatElapsed(result.elapsedMs || 0) }), 'system');
     } catch (err) {
       timer.stop();
       progress.remove();
       liveWrap.remove();
-      if (err?.name !== 'AbortError') appendLine(uiError(err,t('gemini.runFailed')), 'error');
-      else appendLine(t('gemini.stopped'), 'system');
+      if (err?.name !== 'AbortError') {
+        const errorLine=appendLine(chatMessage(err.code,responseLanguage,uiError(err,t('gemini.runFailed'))),'error');
+        if(err.retryable!==false){
+          const button=document.createElement('button');button.type='button';button.className='learning-prompt codex-retry';button.textContent=chatMessage('retry',responseLanguage);
+          const attempt={message:msg,userLine,history:requestHistory,errorLine,timerLine:timer.line,button};failedAttempt=attempt;
+          button.onclick=()=>{if(!running&&failedAttempt===attempt)void sendMessage(attempt.message,attempt);};
+          errorLine.append(button);
+        }
+      } else appendLine(t('gemini.stopped'), 'system');
     } finally {
       setRunning(false);
+      output?.append(promptPanel);promptPanel.hidden=false;
       abortController = null;
       input?.removeAttribute('disabled');
       input?.focus();
     }
+  }
+  form?.addEventListener('submit',event=>{
+    event.preventDefault();if(running||!responseLanguage)return;
+    const message=input?.value?.trim();if(!message)return;input.value='';void sendMessage(message);
   });
 
   document.addEventListener('wikinb:auth-change', (event) => {
-    if (event.detail?.loggedIn) void init();else{abortController?.abort();initialized=false;chatHistory=[];terminal?.classList.add('hidden');gate?.classList.remove('hidden');for(const line of [...output.children].slice(1))line.remove();}
+    if (event.detail?.loggedIn) void init();else{abortController?.abort();initialized=false;chatHistory=[];failedAttempt=null;setExpanded(false);terminal?.classList.add('hidden');gate?.classList.remove('hidden');for(const line of [...output.children])if(line.id!=='codex-intro'&&line!==promptPanel)line.remove();output.append(promptPanel);promptPanel.hidden=false;}
   });
   askLanguage();
 </script>

@@ -536,7 +536,7 @@ export async function codexChatStream(message, onEvent = () => {}, options = {})
       }
     }
   } catch (err) {
-    if (deadline.aborted) throw new Error('AI connection timed out. Please try again.');
+    if (deadline.aborted) throw Object.assign(new Error('AI connection timed out. Please try again.'),{code:'AI_TIMEOUT',retryable:true});
     if (err?.name === 'AbortError' && options.signal?.aborted) {
       return { type: 'done', ok: true, stopped: true, answer: t('gemini.stopped') };
     }
@@ -544,8 +544,8 @@ export async function codexChatStream(message, onEvent = () => {}, options = {})
   }
 
   if (!finalPayload) throw new Error(t('auth.streamInterrupted'));
-  if (finalPayload.type === 'error' && !finalPayload.answer) {
-    throw new Error(finalPayload.error || finalPayload.detail || t('gemini.runFailed'));
+  if (finalPayload.type === 'error' || finalPayload.ok === false) {
+    throw Object.assign(new Error(finalPayload.error || finalPayload.detail || t('gemini.runFailed')),{code:finalPayload.code,retryable:finalPayload.retryable});
   }
   return finalPayload;
 }

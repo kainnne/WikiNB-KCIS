@@ -11,7 +11,7 @@ function draw(){
     const row=document.createElement('li');row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border:1px solid var(--kc-line);border-radius:14px;background:#fff';
     const name=document.createElement('strong');name.textContent=item.file.name;name.style.cssText='font-size:14px;overflow-wrap:anywhere;min-width:0';
     const state=document.createElement('span');state.textContent=item.error||t(item.state);state.style.cssText='font-size:12px;color:var(--kc-muted);flex-shrink:0';row.append(name,state);
-    if(item.id){const link=document.createElement('a');link.textContent=t('upload.view');link.href=`${document.documentElement.dataset.base}library/?file=${encodeURIComponent(item.id)}`;link.className='kc-btn-ghost';row.append(link);}
+    if(item.id){const link=document.createElement('a');link.textContent=t('upload.view');link.href=`${document.documentElement.dataset.base}note?file=${encodeURIComponent(item.id)}`;link.className='kc-btn-ghost';row.append(link);}
     el('upload-queue').append(row);
   }
   el('upload-submit').disabled=busy||!files.some(f=>!f.id);

@@ -50,3 +50,6 @@ wiki/teachers/*/private/**
 /CLAUDE.md
 /AGENTS_Intro/
 /Intro.md
+
+# Public deployment template contains placeholders only.
+!/auth/.env.school.example

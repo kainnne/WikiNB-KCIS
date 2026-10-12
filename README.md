@@ -34,11 +34,11 @@ PUBLIC_BASE_PATH=/ npm run build
 
 前端 4322、API 8790。`auth/.env.school.example` 提供新部署設定。先設定 `SESSION_SECRET`、SMTP 與 AI 金鑰，公開使用前接正式 HTTPS API。不要對同仁寄測試 OTP。建置後會排除舊公開文件資產，避免校內檔案被靜態發布。
 
-線上已接共用登入試用；舊 WikiNB 介面恢復中。2026-10-08 更新 Gemini key 後，真實合成文件搜尋、讀取、回答與來源引用已通過；模型暫時 503 會在同一個 45 秒期限內重試最多兩次。
+線上已接共用登入試用；舊 WikiNB 介面恢復中。2026-10-08 更新 Gemini key 後，真實合成文件搜尋、讀取、回答與來源引用已通過；模型暫時 503 且尚未輸出時，會在同一個 45 秒期限內重試一次。
 
 ## 共用登入、暱稱與交接設定
 
-AI Tools 使用 `/api/auth/send-code` → `/login-with-code`，首次與既有帳號均不要求輸入名稱。預設暱稱為信箱 @ 前字串；若與既有暱稱衝突則自動加序號。修改時可使用 2–20 字的中文、英文字母、數字、底線或句點，所有帳號不可撞名。登入後點右上角暱稱即可修改；登出先確認，成功後顯示狀態。WikiNB 的登入／帳號連結會返回原頁；本機入口連本機 WikiNB，不跳到正式站。
+AI Tools 使用 `/api/auth/send-code` → `/login-with-code`，首次與既有帳號均不要求輸入名稱。預設暱稱為信箱 @ 前字串；若與既有暱稱衝突則自動加序號。修改時可使用 2–20 字的中文、英文字母、數字、底線或句點，所有帳號不可撞名。WikiNB 登入後從右上角選單開啟帳號即可修改；登出先確認，成功後顯示狀態。WikiNB 的登入／帳號連結會返回原頁；本機入口連本機 WikiNB，不跳到正式站。
 
 **正式站未完成的部分**：主任需提供持續運作的 Node 主機、固定 HTTPS API 網址與 DNS 授權。AI Tools `NEXT_PUBLIC_AUTH_API_URL`、WikiNB `PUBLIC_AUTH_PRODUCTION_URL` 或 `config/sites.json.auth.productionUrl`、後台 `AUTH_BASE_URL` 必須指向同一套服務。兩個前端改 URL 後都需重新建置；只更新 API key 不會接好線上登入。盡量讓 API 與兩個前端使用相同主網域，避免瀏覽器封鎖第三方 Cookie。CORS 用精確來源，不能代替校內信箱驗證。
 
@@ -101,7 +101,7 @@ KCIS AI 行為設定放在 `auth/prompts/kcis-ai.md`，交接時隨後台原始�
 
 部署範例預設 `LLM_MODEL=gemini-3.1-flash-lite`、`GEMINI_THINKING_LEVEL=minimal`。後台仍以接手者的環境變數為準；舊 `.env` 若指定 `gemini-flash-latest`，須自行修改並重啟。只有本機預覽已換成固定的輕量模型，線上試用沒有重啟或部署。
 
-一般提問最多提供 6,500 字相關來源，保留原有課堂權限；身分／招呼不讀文件。只有圖片、圖表或 PDF 頁面問題才提供既有授權附件。首段回覆 15 秒、整次串流 45 秒逾時；用 `AI_FIRST_TOKEN_TIMEOUT_MS`／`AI_REQUEST_TIMEOUT_MS` 設定。逾時顯示明確錯誤並結束請求；400／401／403／429／503 不默默發第二次請求。模型服務仍可能有延遲或暫時過載，這些限制不保證每次秒回。
+一般提問最多提供 6,500 字相關來源，保留原有課堂權限；身分／招呼不讀文件。只有圖片、圖表或 PDF 頁面問題才提供既有授權附件。每次請求首段回覆 25 秒、整次操作含重試共用 45 秒逾時；用 `AI_FIRST_TOKEN_TIMEOUT_MS`／`AI_REQUEST_TIMEOUT_MS` 設定。逾時顯示明確錯誤並結束請求；400／401／403／429 不自動重試；收到尚未輸出的 HTTP 503 時，顯示狀態並等待約一秒，最多重試一次，使用相同模型、問題及資料。若已輸出則不自動重跑。模型服務仍可能有延遲或暫時過載，這些限制不保證每次秒回。
 
 `auth/test/ai-runtime.test.js` 驗證相關 Markdown、問候不攜教材、課堂權限、CRLF／尾端串流 frame、provider 錯誤及逾時。實際金鑰測試使用「你是誰」與獨立合成文件，不把 mock 測試當成真實模型答案。
 
@@ -133,15 +133,35 @@ KCIS AI 每次進入均顯示 Language：EN／中文，不儲存上次選擇。�
 本次只更新本機預覽；8 項相關測試與 Astro build／私人資料排除通過，Gemini 請求格式以模擬外部傳輸驗證，未新增真實模型呼叫。桌面1280、平板768、手機390檢查無橫向溢出；語言選擇、提示填入、重新進入均通過。
 
 
-## Shared account fields (2026-10-12)
+## Shared account fields (2026-10-12, local verification)
 
 All three account controls use the same English Account dialog with Name and Department. Department defaults to 教職員 or 學生 from the verified role, and is editable without changing permissions. Display names remain unique. Saving preserves the current tool, reader, filters and drafts. Clearing old login hints during a profile update no longer emits a signed-out event.
 
 Configure FORUM_API_URL on the Node backend and apply Forum migration 0009 before publishing this update. The profile outbox beside USERS_FILE persists retries; account-profiles.json is part of LIBRARY_DATA_DIR and must move with the library. The shared SESSION_SECRET stays backend-only. Profile delivery uses signed identity and stable author hashes, including ownership references for older forum copies; it never guesses authors by name. Existing originals and immutable history remain, while current keywords and converted Markdown metadata update. A failed delivery is shown as pending. The two profile fields are validated together; stale concurrent edits are refused without overwriting the newer account.
 
-46 tests passed (27 auth + 19 forum), including real isolated HTTP profile delivery and legacy-copy reconciliation. In the local synthetic run, updating 250 Markdown records took a median 81 ms and maximum 96 ms; account + library + local HTTP forum write took 20 ms. These are local measurements, not a hosted latency guarantee. Manual browser checks cover success/error states, unchanged URL, retained reader/draft/filter, shared fields, and account dialog at 1280/768/390 widths. Deployment includes the two KCIS frontends, the Forum Worker migration and the shared Node backend; personal WikiNB is unchanged.
+46 tests passed (27 auth + 19 forum), including real isolated HTTP profile delivery and legacy-copy reconciliation. In the local synthetic run, updating 250 Markdown records took a median 81 ms and maximum 96 ms; account + library + local HTTP forum write took 20 ms. These are local measurements, not a hosted latency guarantee. Manual browser checks cover success/error states, unchanged URL, retained reader/draft/filter, shared fields, and account dialog at 1280/768/390 widths. This revision is local only; personal WikiNB is unchanged.
 
 
-## Header menu and interface language (2026-10-12)
+## KCIS AI controls and recovery (2026-10-12, local preview)
 
-WikiNB KCIS keeps KCIS AI and the menu toggle in the header. AI Tools, WikiNB, account name/department, sign-in/out and interface language are inside the menu. Name and department edits stay in the current page; signing out requires confirmation. Interface language defaults to English and is stored as kcis:interface-language. Switching language preserves the URL and drafts, and does not refresh the session or change the AI conversation language, current prompt pair or document text. This release preserves the existing homepage, chat and library layouts.
+The two suggested prompts use the personal WikiNB card layout with small line icons and an icon-only refresh control. There is no prompt heading or visible Reset label. Clicking a card sends its complete localized lesson instructions immediately, but displays only the short question. Prompt cards stay inside the scrolling conversation. Other pages and shared account controls are unchanged. The personal WikiNB source remains untouched.
+
+A failed question can be retried in place without duplicating its bubble or polluting history. Only completed question/answer pairs enter the next request; stopped or interrupted output never advances a lesson. Feedback follows the selected conversation language. The local backend uses AI_FIRST_TOKEN_TIMEOUT_MS=25000 and AI_REQUEST_TIMEOUT_MS=45000; the longer first-token deadline does not delay successful replies. Before publishing this revision, update the receiving backend environment and restart that API; existing environment overrides are preserved. This AI revision has not been committed, pushed or deployed.
+
+31 auth tests and the static/private-build check passed. An isolated UI provider reproduced repeated 503, manual retry of the exact original question and successful subsequent recovery. The real Gemini administrative first question then completed in about 14 seconds, using only previously approved units 01/02 and the 16 lesson titles. Desktop 1280, tablet 768 and phone 390 layouts have no horizontal overflow.
+
+
+## 2026-10-12 本機導覽與操作修正
+
+首頁 KCIS AI 是藍紫主按鈕，有常態光暈、滑入光場／微幅傾斜、按下及鍵盤焦點回饋；尊重減少動態偏好。右上角外部僅保留 KCIS AI 與選單按鈕。AI Tools、WikiNB、姓名／部門、登入／登出及中文／英文介面切換都收進選單；教师另有上傳與個人文件。未登入者仍可開選單、切換語言或登入，帳號操作保留頁內修改與登出確認。
+
+KCIS AI 先顯示介紹，再顯示兩張提示卡；更新图示在卡片框外下方。放大／還原及 Escape 操作不切換網址、不清草稿，放大時仍可改對話語言。介面語言另存為 kcis:interface-language，預設英文；切換只更新介面，不呼叫登入 API、不跳頁、不重抽提示卡或清除搜尋／上傳／對話草稿。AI 回覆語言仍由每次進入的 Language 選擇決定，文件原文與自訂部門／keywords不自動翻譯。
+
+Teachers 與 School Library 不再是獨立頁面／入口，舊網址導向 WikiNB；含 file 的舊連結直接開對應的 note。校內文件由既有登入 API 提供，整併進 WikiNB 搜尋與阅读，保留姓名、部門、自訂 keywords、原檔與 Markdown 下載。資料、文件庫 API、論壇同步及歷史並未移除。公開靜態建置不包含校內全文，未登入不可讀取。
+
+本機32項auth tests與build／私人內容排除通過；實際驗收首頁焦點、導覽順序、三種尺寸、聊天放大／還原／Escape、草稿保留、WikiNB讀既有教材、匿名阻擋與Markdown下載內容一致。此修正尚未commit、push或部署，個人WikiNB主站未修改。
+
+
+## Complete verified frontend release (2026-10-12)
+
+The release includes the blue-purple homepage KCIS AI action, introduction before two prompt cards, the refresh icon below the card frame, expand/restore with Escape and draft preservation, the shared account menu, interface language toggle, and responsive school branding. WikiNB search and note reading include authenticated school documents; retired Teachers/Library links preserve file IDs and redirect to WikiNB. The backend includes the tested first-question recovery. UI source matches the verified local version; deployment URLs and existing production storage are environment-specific. Local test accounts, fixtures, keys, private school data and agent rules are excluded. Earlier local-only release notes above describe their state at the time of testing.
