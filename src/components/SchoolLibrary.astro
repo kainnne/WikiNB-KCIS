@@ -4,25 +4,25 @@ const {mine=false}=Astro.props;
 const base=import.meta.env.BASE_URL;
 ---
 <section id="school-library" class="school-library" data-mine={String(mine)}>
-  <header class="library-heading"><h1>{mine?'My documents':'School Library'}</h1><a id="library-upload" href={`${base}notes`} class="kc-btn-primary" hidden>Upload documents</a></header>
+  <header class="library-heading"><h1 data-i18n={mine?'home.myNotes':'library.title'}>{mine?'My documents':'School Library'}</h1><a id="library-upload" href={`${base}notes`} class="kc-btn-primary" hidden data-i18n="upload.title">Upload documents</a></header>
   <p id="library-status" role="status" aria-live="polite"></p>
-  <div id="library-gate" class="kc-card" hidden><p>Sign in with your school email to read documents.</p><a id="library-login" href={`${base}login`} class="kc-btn-primary" data-school-signin>Sign in</a></div>
+  <div id="library-gate" class="kc-card" hidden><p data-i18n="library.gate">Sign in with your school email to read documents.</p><a id="library-login" href={`${base}login`} class="kc-btn-primary" data-school-signin data-i18n="nav.login">Sign in</a></div>
   <div id="library-content" hidden>
     <div class="library-filters">
       {!mine&&<div class="library-roles" role="group" aria-label="Uploaded by"><button type="button" data-role="" aria-pressed="true">All</button><button type="button" data-role="teachers" aria-pressed="false">Teachers</button><button type="button" data-role="students" aria-pressed="false">Students</button><button type="button" data-role="forum" aria-pressed="false">AI Forum</button></div>}
-      <input id="library-query" type="search" placeholder="Search documents or keywords" aria-label="Search documents or keywords" />
+      <input id="library-query" type="search" data-i18n-placeholder="search.placeholder" data-i18n-aria="search.placeholder" placeholder="Search documents or keywords" aria-label="Search documents or keywords" />
     </div>
-    <div id="library-categories" class="library-categories" aria-label="Categories"></div>
+    <div id="library-categories" class="library-categories" data-i18n-aria="library.categories" aria-label="Categories"></div>
     <div class:list={['library-columns',mine&&'library-mine']}>
       <div>
         <div id="library-files" class="library-files"></div>
         <article id="library-reader" class="kc-card" hidden>
-          <button id="library-close" type="button" class="kc-btn-ghost">Back to list</button>
+          <button id="library-close" type="button" class="kc-btn-ghost" data-i18n="library.back">Back to list</button>
           <h2 id="library-reader-title"></h2><div id="library-reader-keywords" class="library-tags"></div>
-          <div class="library-reader-actions"><button id="library-download" class="kc-btn-ghost" type="button">Download original</button><button id="library-markdown-download" class="kc-btn-ghost" type="button" hidden>Download Markdown</button></div>
+          <div class="library-reader-actions"><button id="library-download" class="kc-btn-ghost" type="button" data-i18n="document.original">Download original</button><button id="library-markdown-download" class="kc-btn-ghost" type="button" hidden data-i18n="document.markdown">Download Markdown</button></div>
           <div id="library-markdown" class="wiki-content"></div>
         </article>
-        {mine&&<section id="legacy-notes" hidden><h2>Earlier notes</h2><div id="legacy-notes-list" class="library-files"></div></section>}
+        {mine&&<section id="legacy-notes" hidden><h2 data-i18n="library.earlier">Earlier notes</h2><div id="legacy-notes-list" class="library-files"></div></section>}
       </div>
       {!mine&&<aside class="library-chat kc-card"><h2>KCIS AI</h2><form id="library-ask"><label for="library-question">Your question</label><textarea id="library-question" maxlength="4000" required></textarea><button class="kc-btn-primary" type="submit">Ask</button></form><div id="library-answer" class="wiki-content" aria-live="polite"></div><div id="library-sources"></div></aside>}
     </div>

@@ -2,17 +2,17 @@
 import '../styles/school-account.css';
 ---
 <dialog id="school-account-dialog" class="kc-account-dialog" aria-labelledby="school-account-title">
-  <button id="school-account-close" type="button" class="kc-account-close" aria-label="Close">×</button>
+  <button id="school-account-close" type="button" class="kc-account-close" data-i18n-aria="account.close" aria-label="Close">×</button>
   <h2 id="school-account-title"></h2>
   <p id="school-account-email" class="kc-account-email"></p>
   <form id="school-account-form">
-    <label id="school-email-field"><span>School email</span><input id="school-email" type="email" autocomplete="email" /></label>
-    <label id="school-code-field" hidden><span>Verification code</span><input id="school-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" /></label>
-    <label id="school-nickname-field" hidden><span>Name</span><input id="school-nickname" autocomplete="nickname" minlength="2" maxlength="20" /></label>
-    <label id="school-department-field" hidden><span>Department</span><input id="school-department" autocomplete="organization" maxlength="40" /></label>
+    <label id="school-email-field"><span data-i18n="account.email">School email</span><input id="school-email" type="email" autocomplete="email" /></label>
+    <label id="school-code-field" hidden><span data-i18n="account.code">Verification code</span><input id="school-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" /></label>
+    <label id="school-nickname-field" hidden><span data-i18n="account.name">Name</span><input id="school-nickname" autocomplete="nickname" minlength="2" maxlength="20" /></label>
+    <label id="school-department-field" hidden><span data-i18n="account.department">Department</span><input id="school-department" autocomplete="organization" maxlength="40" /></label>
     <p id="school-account-error" role="alert"></p>
     <div class="kc-account-actions"><button id="school-account-submit" class="kc-account-primary" type="submit"></button><button id="school-account-cancel" class="kc-account-secondary" type="button" hidden></button></div>
-    <button id="school-account-signout" class="kc-account-text" type="button" hidden>Sign out</button>
+    <button id="school-account-signout" class="kc-account-text" type="button" hidden data-i18n="account.signout">Sign out</button>
   </form>
 </dialog>
 <span id="school-account-notice" role="status" class="kc-account-notice"></span>

@@ -725,6 +725,12 @@ export async function mountNavAuth() {
   const userLabel = document.getElementById('nav-user');
   const userWrap = document.getElementById('nav-user-wrap');
   const userMenu = document.getElementById('nav-user-menu');
+  const accountName = document.getElementById('nav-account-name');
+  const accountDepartment = document.getElementById('nav-account-department');
+  let displayedUser = null;
+  const localizeAccount = () => {
+    if (accountDepartment) accountDepartment.textContent = displayedUser?.department === '教職員' ? t('account.staff') : displayedUser?.department === '學生' ? t('account.student') : displayedUser?.department || '';
+  };
   const navAi = document.getElementById('nav-ai');
   const navRoleCta = document.getElementById('nav-role-cta');
   const navRoleCtaLabel = navRoleCta?.querySelector('.nav-addnote-label');
@@ -743,7 +749,7 @@ export async function mountNavAuth() {
 
   const closeMenu = () => {
     userMenu?.classList.add('hidden');
-    userLabel?.setAttribute('aria-expanded', 'false');
+    if(userMenu) userLabel?.setAttribute('aria-expanded', 'false');
   };
 
   const openMenu = () => {
@@ -791,7 +797,7 @@ export async function mountNavAuth() {
     const teacher = loggedIn && isTeacherUser(me.user);
     const student = loggedIn && !teacher;
     const classroomStudent = student && me.user?.authType === 'student-code';
-    loginLink?.classList.toggle('hidden', loggedIn);if(loginLink){loginLink.textContent='Sign in';loginLink.disabled=false;}
+    loginLink?.classList.toggle('hidden', loggedIn);if(loginLink){loginLink.dataset.i18n='nav.login';loginLink.textContent=t('nav.login');loginLink.disabled=false;}
     // 訪客：AI應用導航；登入後（老師／學生）隱藏
     navAi?.classList.toggle('hidden', loggedIn);
     // 彩色 CTA：老師 → My notes；學生 → Gemini × KCIS
@@ -834,10 +840,13 @@ export async function mountNavAuth() {
     editNicknameLink?.classList.toggle('hidden', classroomStudent);
     if (userWrap && userLabel) {
       if (loggedIn) {
-        userLabel.textContent = me.user.nickname || me.user.name || me.user.email?.split('@')[0] || t('nav.accountMenu');
-        userLabel.title = t('nav.accountMenu');
+        displayedUser=me.user;
+        (accountName || userLabel).textContent = me.user.nickname || me.user.name || me.user.email?.split('@')[0] || t('nav.accountMenu');
+        userLabel.title = t('account.title');
+        localizeAccount();
         userWrap.classList.remove('hidden');
       } else {
+        displayedUser=null;localizeAccount();
         userWrap.classList.add('hidden');
         closeMenu();
       }
@@ -852,7 +861,7 @@ export async function mountNavAuth() {
   userLabel?.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!userMenu) return;
+    if (!userMenu) {closeMobileMenu();return;}
     if (userMenu.classList.contains('hidden')) openMenu();
     else closeMenu();
   });
@@ -865,7 +874,7 @@ export async function mountNavAuth() {
     else closeMobileMenu();
   });
 
-  mobileMenu?.querySelectorAll('a').forEach((link) => {
+  mobileMenu?.querySelectorAll('a, button:not([data-menu-persistent])').forEach((link) => {
     link.addEventListener('click', closeMobileMenu);
   });
 
@@ -876,6 +885,8 @@ export async function mountNavAuth() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      const wasOpen=mobileToggle?.getAttribute('aria-expanded')==='true';
+      if(wasOpen)mobileToggle.focus();
       closeMenu();
       closeMobileMenu();
     }
@@ -883,7 +894,7 @@ export async function mountNavAuth() {
 
   /* Account actions stay on the current tool. */
   await mountSchoolAccount({onChange:update});
-  document.addEventListener('wikinb:locale-change', update);
+  document.addEventListener('wikinb:locale-change', localizeAccount);
   window.addEventListener('kcis:session', update);
   window.addEventListener('storage', e => { if(e.key==='kcis:auth-change')void update(); });
   document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible')void update(); });

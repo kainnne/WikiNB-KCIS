@@ -2,18 +2,18 @@
 const base = import.meta.env.BASE_URL;
 ---
 <section class="document-upload">
-  <header class="upload-heading"><h1>Upload documents</h1><a href={`${base}library/`} class="kc-btn-ghost">School Library</a></header>
-  <div id="upload-gate" class="kc-card" hidden><p>Sign in with a teacher account to upload documents.</p><a href={`${base}login`} data-school-signin class="kc-btn-primary">Sign in</a></div>
+  <header class="upload-heading"><h1 data-i18n="upload.title">Upload documents</h1><a href={`${base}library/`} class="kc-btn-ghost">School Library</a></header>
+  <div id="upload-gate" class="kc-card" hidden><p data-i18n="upload.gate">Sign in with a teacher account to upload documents.</p><a href={`${base}login`} data-school-signin class="kc-btn-primary" data-i18n="nav.login">Sign in</a></div>
   <form id="document-upload-form" hidden>
     <button id="upload-dropzone" class="upload-dropzone" type="button">
       <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5" /></svg>
-      <strong>Drop files or choose files</strong>
-      <span>PDF, MD, DOCX, TXT · 12 MB per file</span>
+      <strong data-i18n="upload.drop">Drop files or choose files</strong>
+      <span data-i18n="upload.formats">PDF, MD, DOCX, TXT · 12 MB per file</span>
     </button>
     <input id="upload-files" type="file" accept=".pdf,.md,.docx,.txt" multiple hidden />
-    <div class="upload-keywords"><label for="upload-keywords">Keywords</label><div id="upload-author" class="tag-badge"></div><div id="upload-role" class="tag-badge">Staff</div><input id="upload-keywords" placeholder="Optional keywords, separated by commas" maxlength="520" /></div>
-    <ul id="upload-queue" aria-label="Selected files"></ul>
-    <div class="upload-actions"><button id="upload-submit" type="submit" class="kc-btn-primary" disabled>Upload</button><button id="upload-clear" type="button" class="kc-btn-ghost" hidden>Clear</button></div>
+    <div class="upload-keywords"><label for="upload-keywords" data-i18n="upload.keywords">Keywords</label><div id="upload-author" class="tag-badge"></div><div id="upload-role" class="tag-badge" data-i18n="account.staff">Staff</div><input id="upload-keywords" data-i18n-placeholder="upload.optional" placeholder="Optional keywords, separated by commas" maxlength="520" /></div>
+    <ul id="upload-queue" data-i18n-aria="upload.selected" aria-label="Selected files"></ul>
+    <div class="upload-actions"><button id="upload-submit" type="submit" class="kc-btn-primary" disabled data-i18n="upload.submit">Upload</button><button id="upload-clear" type="button" class="kc-btn-ghost" hidden data-i18n="upload.clear">Clear</button></div>
   </form>
   <p id="upload-status" role="status" aria-live="polite"></p>
 </section>

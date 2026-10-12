@@ -1,4 +1,4 @@
-import { uiError } from './i18n.js';
+import { t, uiError } from './i18n.js';
 import { getAuthUrl, clearSessionHint } from './auth-client.js';
 export async function mountSchoolAccount({onChange=()=>{}}={}) {
  const el=id=>document.getElementById(id),dialog=el('school-account-dialog');if(!dialog||dialog.dataset.mounted)return;dialog.dataset.mounted='true';
@@ -19,14 +19,15 @@ export async function mountSchoolAccount({onChange=()=>{}}={}) {
  }
  function render(){
   const account=view==='account',logout=view==='logout';
-  el('school-account-title').textContent=logout?'Sign out?':account?'Account':'School sign-in';
+  el('school-account-title').textContent=t(logout?'account.confirmSignout':account?'account.title':'account.signin');
   el('school-account-email').textContent=account?user?.email||'':step!=='email'?el('school-email').value:'';el('school-account-email').hidden=!el('school-account-email').textContent;el('school-account-error').hidden=!el('school-account-error').textContent;
   for(const [id,show] of [['email',!logout&&!account&&step==='email'],['code',!logout&&!account&&step==='code'],['nickname',account],['department',account]]){el('school-'+id+'-field').hidden=!show;el('school-'+id).required=show;el('school-'+id).disabled=!show||busy;}
-  el('school-account-submit').textContent=busy?'Saving…':logout?'Sign out':account?'Save':step==='email'?'Send code':'Continue';
+  el('school-account-submit').textContent=t(busy?'account.saving':logout?'account.signout':account?'account.save':step==='email'?'account.sendCode':'account.continue');
   el('school-account-form').setAttribute('aria-busy',String(busy));
   el('school-account-submit').disabled=busy;el('school-account-close').disabled=busy;
-  el('school-account-cancel').hidden=!logout&&!account;el('school-account-cancel').textContent=logout?'Cancel':'Sign out';el('school-account-cancel').disabled=busy;
+  el('school-account-cancel').hidden=!logout&&!account;el('school-account-cancel').textContent=t(logout?'account.cancel':'account.signout');el('school-account-cancel').disabled=busy;
  }
+ document.addEventListener('wikinb:locale-change',render);
  async function open(mode){
   el('school-account-error').textContent='';el('school-account-notice').textContent='';
   try{await refresh();await onChange();if(user&&mode==='login'&&/\/login(?:\/|$)/.test(location.pathname)&&new URLSearchParams(location.search).get('next')){finishLogin();return;}
@@ -43,10 +44,10 @@ export async function mountSchoolAccount({onChange=()=>{}}={}) {
  el('school-account-form').onsubmit=async event=>{
   event.preventDefault();if(busy||composing)return;busy=true;el('school-account-error').textContent='';render();
   try{
-   if(view==='logout'){await request('logout',{});user=null;await changed();dialog.close();el('school-account-notice').textContent='Signed out';}
+   if(view==='logout'){await request('logout',{});user=null;await changed();dialog.close();el('school-account-notice').textContent=t('account.signedOut');}
    else if(view==='account'){
     const result=await request('nickname',{nickname:el('school-nickname').value.trim(),department:el('school-department').value.trim(),expectedRevision:user?.updatedAt},'PATCH');user=result.user;
-    await changed();dialog.close();el('school-account-notice').textContent=(result.sync?.library==='pending'||result.sync?.forum==='pending')?'Account saved · Sync pending':'Account updated';
+    await changed();dialog.close();el('school-account-notice').textContent=(result.sync?.library==='pending'||result.sync?.forum==='pending')?t('account.syncPending'):t('account.updated');
    }else if(step==='email'){el('school-email').value=el('school-email').value.trim().toLowerCase();await request('send-code',{email:el('school-email').value,purpose:'login'});step='code';el('school-code').value='';}
    else{const result=await request('login-with-code',{email:el('school-email').value,code:el('school-code').value,purpose:'login'});user=result.user;await changed();dialog.close();finishLogin();}
   }catch(error){el('school-account-error').textContent=uiError(error);}

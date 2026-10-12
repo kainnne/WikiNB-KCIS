@@ -7,7 +7,7 @@
 - 登入集中在 AI Tools 右上角：只輸入信箱與 OTP，暱稱預設為信箱 @ 前字串；使用 HttpOnly session。除兩個指定測試帳號外，不接受一般 Gmail。前端僅保存介面狀態，權限由 API 判斷。
 - 信箱 local-part 開頭為 s/j 加恰好五位數字時預設學生，其餘為老師；名單可覆寫。唯一管理員為 `kainnne@kcis.com.tw`。
 - 上傳分為 `teachers`、`students`，各四類：`academic`、`extracurricular`、`ai-resolved`、`ai-articles`。依檔名／可抽取文字規則分類，不用 LLM。
-- 教師上傳限 PDF、MD、DOCX、TXT，單檔 12 MB；學生可閱讀但不能上傳。介面固定英文，只提供檔案拖曳／選取，不提供線上編輯。後台自動保存原檔與轉換後 Markdown；PDF 另保存版面圖像及解析資訊。Keywords 固定包含當下暱稱與「教職員／學生」，另可新增最多 12 個 keywords（各 40 字），不能由檔案 metadata 冒用作者。圖片與無文字 PDF不代表已 OCR。AI 使用有界的搜尋／閱讀工具，不執行文件指令或本機 shell。舊 Wiki／檔案／學生 API 保留相容；本機 Codex 呼叫不開放，Git 同步須由指定管理員明確啟用。
+- 教師上傳限 PDF、MD、DOCX、TXT，單檔 12 MB；學生可閱讀但不能上傳。WikiNB 介面可在選單切換中文／英文（論壇仍為英文），只提供檔案拖曳／選取，不提供線上編輯。後台自動保存原檔與轉換後 Markdown；PDF 另保存版面圖像及解析資訊。Keywords 固定包含當下暱稱與「教職員／學生」，另可新增最多 12 個 keywords（各 40 字），不能由檔案 metadata 冒用作者。圖片與無文字 PDF不代表已 OCR。AI 使用有界的搜尋／閱讀工具，不執行文件指令或本機 shell。舊 Wiki／檔案／學生 API 保留相容；本機 Codex 呼叫不開放，Git 同步須由指定管理員明確啟用。
 - 所有新資料都經 `/api/library` 校內 session 檢查後共享，不以公開靜態檔提供。舊課堂資料保留原權限，不自動改為全校公開。
 - 論壇解決紀錄由具秘密金鑰的服務匯入，版本保留；Worker 每五分鐘送出待同步佇列，失敗保留並重試；同題更新沿用文件 ID、舊版留在 versions，重複送達不新增文件。管理員隱藏／還原會同步，普通帳號不能刪除。
 
@@ -140,3 +140,8 @@ All three account controls use the same English Account dialog with Name and Dep
 Configure FORUM_API_URL on the Node backend and apply Forum migration 0009 before publishing this update. The profile outbox beside USERS_FILE persists retries; account-profiles.json is part of LIBRARY_DATA_DIR and must move with the library. The shared SESSION_SECRET stays backend-only. Profile delivery uses signed identity and stable author hashes, including ownership references for older forum copies; it never guesses authors by name. Existing originals and immutable history remain, while current keywords and converted Markdown metadata update. A failed delivery is shown as pending. The two profile fields are validated together; stale concurrent edits are refused without overwriting the newer account.
 
 46 tests passed (27 auth + 19 forum), including real isolated HTTP profile delivery and legacy-copy reconciliation. In the local synthetic run, updating 250 Markdown records took a median 81 ms and maximum 96 ms; account + library + local HTTP forum write took 20 ms. These are local measurements, not a hosted latency guarantee. Manual browser checks cover success/error states, unchanged URL, retained reader/draft/filter, shared fields, and account dialog at 1280/768/390 widths. Deployment includes the two KCIS frontends, the Forum Worker migration and the shared Node backend; personal WikiNB is unchanged.
+
+
+## Header menu and interface language (2026-10-12)
+
+WikiNB KCIS keeps KCIS AI and the menu toggle in the header. AI Tools, WikiNB, account name/department, sign-in/out and interface language are inside the menu. Name and department edits stay in the current page; signing out requires confirmation. Interface language defaults to English and is stored as kcis:interface-language. Switching language preserves the URL and drafts, and does not refresh the session or change the AI conversation language, current prompt pair or document text. This release preserves the existing homepage, chat and library layouts.

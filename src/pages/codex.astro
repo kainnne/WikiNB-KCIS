@@ -211,7 +211,7 @@ const base = import.meta.env.BASE_URL;
     if(responseLanguage)applyConversationLanguage();
   }
 
-  document.addEventListener('wikinb:locale-change', onLocaleChange);
+  // Interface language changes do not reset the AI response language or prompt pair.
 
   let initialized = false;
   let initializing = false;
