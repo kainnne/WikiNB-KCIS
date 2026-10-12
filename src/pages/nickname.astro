@@ -9,9 +9,7 @@ const base = import.meta.env.BASE_URL;
     <div class="kc-hero relative overflow-hidden rounded-[1.75rem] border px-6 py-10 sm:px-8">
       <div class="kc-hero-glow" aria-hidden="true"></div>
       <div class="relative z-[1]">
-        <h1 class="text-center font-display text-3xl font-bold text-kc-blue-deep" data-i18n="login.editNickname">
-          Edit display name
-        </h1>
+        <h1 class="text-center font-display text-3xl font-bold text-kc-blue-deep" data-i18n="login.editNickname">Edit display name</h1>
         <p id="nick-error" class="mt-4 hidden text-center text-sm text-red-600" role="alert"></p>
         <p id="nick-ok" class="mt-4 hidden text-center text-sm text-emerald-700"></p>
 
@@ -20,9 +18,7 @@ const base = import.meta.env.BASE_URL;
             >Display name (required)</label
           >
           <input id="nick-input" type="text" maxlength="20" class="search-input pl-5" autocomplete="nickname" />
-          <p class="text-xs text-kc-muted" data-i18n="login.nicknameHint">
-            Only Chinese, English letters, ( _  . ) are allowed; length 2–20 characters.
-          </p>
+          <p class="text-xs text-kc-muted" data-i18n="login.nicknameHint">2–20 characters: Chinese, English, digits, _ or . Unique across all accounts.</p>
           <button id="nick-save" type="button" class="kc-btn-primary w-full justify-center py-3" data-i18n="login.saveNickname"
             >Save</button
           >

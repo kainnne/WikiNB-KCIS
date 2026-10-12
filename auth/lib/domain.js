@@ -30,7 +30,7 @@ export function getAllowedDomains() {
 
 /** 逗號分隔的額外允許信箱（測試用 Gmail 等） */
 export function getExtraAllowedEmails() {
-  return String(process.env.EXTRA_ALLOWED_EMAILS || 'chaos60649@gmail.com')
+  return String(process.env.EXTRA_ALLOWED_EMAILS ?? 'chaos60649@gmail.com,st101031616@gmail.com')
     .split(',')
     .map((s) => normalizeEmail(s))
     .filter(Boolean);
@@ -39,7 +39,7 @@ export function getExtraAllowedEmails() {
 /** 明確視為老師／管理員的例外信箱（未寫進 roster 時） */
 export function getExtraTeacherEmails() {
   return String(
-    process.env.EXTRA_TEACHER_EMAILS || 'chaos60649@gmail.com',
+    process.env.EXTRA_TEACHER_EMAILS || '',
   )
     .split(',')
     .map((s) => normalizeEmail(s))
@@ -48,7 +48,7 @@ export function getExtraTeacherEmails() {
 
 export function isAllowedSchoolEmail(email) {
   const normalized = normalizeEmail(email);
-  if (!normalized.includes('@')) return false;
+  if (!/^[^@\s]+@[^@\s]+$/.test(normalized)) return false;
   return getAllowedDomains().some((domain) => normalized.endsWith(`@${domain}`));
 }
 

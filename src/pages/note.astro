@@ -4,12 +4,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 const base = import.meta.env.BASE_URL;
 ---
 
-<BaseLayout title="筆記" description="登入後由 Auth 讀取筆記（不依賴靜態建置）">
+<BaseLayout title="Note" description="登入後由 Auth 讀取筆記（不依賴靜態建置）">
   <div class="animate-fadeIn mx-auto max-w-3xl">
-    <div id="note-loading" class="kc-card p-8 text-center text-kc-muted">確認登入中…</div>
+    <div id="note-loading" class="kc-card p-8 text-center text-kc-muted" data-i18n="note.checking">Checking sign-in…</div>
     <div id="note-gate" class="kc-card hidden p-8 text-center text-kc-muted">
-      <p class="mb-3">此筆記僅限康橋登入用戶閱讀。</p>
-      <a id="note-login-link" href={`${base}login`} class="kc-btn-primary inline-flex">前往登入</a>
+      <p class="mb-3" data-i18n="note.gate">This note is available only to signed-in Kang Chiao users.</p>
+      <a id="note-login-link" href={`${base}login`} class="kc-btn-primary inline-flex" data-i18n="note.goLogin">Go to login</a>
     </div>
     <div id="note-error" class="kc-card hidden border border-red-200 bg-red-50/80 p-6 text-red-800"></div>
 
@@ -19,11 +19,20 @@ const base = import.meta.env.BASE_URL;
         <h1 id="note-title" class="font-display text-3xl font-bold text-kc-blue-deep md:text-4xl"></h1>
         <p id="note-meta" class="mt-2 text-sm text-kc-muted"></p>
       </header>
+      <section id="note-source" class="mb-5 hidden flex-wrap items-center justify-between gap-4 rounded-2xl border border-kc-blue/20 bg-kc-mist/60 p-4">
+        <div class="min-w-0">
+          <p class="text-sm font-bold text-kc-blue-deep" data-i18n="note.originalPdf">Original PDF material</p>
+          <p id="note-source-meta" class="mt-1 truncate text-xs text-kc-muted"></p>
+        </div>
+        <div class="flex shrink-0 flex-wrap gap-2">
+          <button id="note-open-source" type="button" class="kc-btn-primary py-2 text-sm" data-i18n="note.openOriginalPdf">Open original PDF</button>
+          <button id="note-download-source" type="button" class="kc-btn-secondary py-2 text-sm" data-i18n="note.downloadOriginal">Download original</button>
+        </div>
+      </section>
       <div id="note-body" class="kc-card kc-core-card wiki-content p-6 md:p-10"></div>
       <div class="mt-8 flex flex-wrap gap-3">
-        <a href={`${base}search`} class="kc-btn-ghost" data-i18n="wiki.library">← 筆記庫</a>
-        <a id="note-edit" href="#" class="kc-btn-secondary hidden">Edit</a>
-        <a href={`${base}my-notes`} class="kc-btn-ghost">My notes</a>
+        <a href={`${base}search`} class="kc-btn-ghost" data-i18n="wiki.library">← Library</a>
+        <a href={`${base}my-notes`} class="kc-btn-ghost" data-i18n="home.myNotes">My documents</a>
       </div>
     </article>
   </div>
@@ -32,12 +41,15 @@ const base = import.meta.env.BASE_URL;
 <script>
   import {
     clearSessionHint,
+    downloadUploadedFile,
     hasSessionHint,
     isTeacherUser,
+    openUploadedFile,
     readWikiFile,
     requireLogin,
   } from '../scripts/auth-client.js';
   import { loginHrefWithNext, markdownToHtml } from '../scripts/md-render.js';
+  import { t } from '../scripts/i18n.js';
 
   function pageBase() {
     return document.documentElement.dataset.base || '/WikiNB-KCIS/';
@@ -53,6 +65,16 @@ const base = import.meta.env.BASE_URL;
   const errEl = document.getElementById('note-error');
   const article = document.getElementById('note-article');
   const loginLink = document.getElementById('note-login-link');
+  let currentSource = null;
+
+  function renderSourceMeta() {
+    const meta = document.getElementById('note-source-meta');
+    if (!meta || !currentSource) return;
+    meta.textContent = t('note.pdfSourceMeta', {
+      name: currentSource.originalName || 'PDF',
+      pages: currentSource.pageCount || '—',
+    });
+  }
 
   const next = `${window.location.pathname}${window.location.search}`;
   const loginUrl = loginHrefWithNext(next, pageBase());
@@ -62,7 +84,7 @@ const base = import.meta.env.BASE_URL;
     loading?.classList.add('hidden');
     gate?.classList.add('hidden');
     if (errEl) {
-      errEl.textContent = msg || '無法開啟筆記';
+      errEl.textContent = msg || t('note.openFailed');
       errEl.classList.remove('hidden');
     }
   }
@@ -85,11 +107,11 @@ const base = import.meta.env.BASE_URL;
 
   (async () => {
     if (!subjectId || !slug) {
-      showError('網址缺少科目或檔名。請從 WikiNB 搜尋或首頁字卡重新點開。');
+      showError(t('note.missingSubject'));
       return;
     }
     if (!teacherId) {
-      showError('網址缺少老師資料夾 id。請從 WikiNB 搜尋重新點開。');
+      showError(t('note.missingTeacher'));
       return;
     }
 
@@ -97,7 +119,7 @@ const base = import.meta.env.BASE_URL;
     const onLocal =
       location.hostname === '127.0.0.1' || location.hostname === 'localhost';
     if (!hasSessionHint() && !onLocal) {
-      goLogin('請先登入後再閱讀筆記。');
+      goLogin(t('note.loginRequired'));
       return;
     }
 
@@ -108,13 +130,13 @@ const base = import.meta.env.BASE_URL;
     if (!session.authenticated) {
       goLogin(
         session.offline
-          ? '無法確認登入（Auth／Tunnel 離線或逾時）。請登入後再試。'
-          : '請先登入後再閱讀筆記。',
+          ? t('note.authUnavailable')
+          : t('note.loginRequired'),
       );
       return;
     }
 
-    if (loading) loading.textContent = '載入筆記中…';
+    if (loading) loading.textContent = t('note.loading');
 
     try {
       const data = await readWikiFile({ subjectId, slug, teacherId });
@@ -129,24 +151,47 @@ const base = import.meta.env.BASE_URL;
         metaEl.textContent = `${data.storage || 'live'} · ${teacherId}/${subjectId}/${slug}.md`;
       }
       if (tagsEl) {
-        tagsEl.innerHTML = `<span class="tag-keyword">${teacherId}</span><span class="tag-keyword">${subjectId}</span>`;
+        tagsEl.replaceChildren();
+        for (const value of [teacherId, subjectId]) {
+          const tag = document.createElement('span');
+          tag.className = 'tag-keyword';
+          tag.textContent = value;
+          tagsEl.append(tag);
+        }
       }
       if (bodyEl) bodyEl.innerHTML = markdownToHtml(data.content || '', { base: pageBase() });
 
-      const edit = document.getElementById('note-edit');
-      if (edit && isTeacherUser(session.user) && session.user.teacherId === teacherId) {
-        edit.href = `${pageBase()}editor?mode=edit&subjectId=${encodeURIComponent(subjectId)}&slug=${encodeURIComponent(slug)}`;
-        edit.classList.remove('hidden');
+      if (data.source?.fileId && data.source.type === 'pdf') {
+        currentSource = data.source;
+        renderSourceMeta();
+        document.getElementById('note-source')?.classList.remove('hidden');
+        document.getElementById('note-source')?.classList.add('flex');
+        document.getElementById('note-open-source')?.addEventListener('click', async (event) => {
+          const button = event.currentTarget;
+          button.disabled = true;
+          try { await openUploadedFile(currentSource.fileId); }
+          catch (error) { showError(error.message || t('note.sourceFailed')); }
+          finally { button.disabled = false; }
+        });
+        document.getElementById('note-download-source')?.addEventListener('click', async (event) => {
+          const button = event.currentTarget;
+          button.disabled = true;
+          try { await downloadUploadedFile(currentSource.fileId, currentSource.originalName || 'document.pdf'); }
+          catch (error) { showError(error.message || t('note.sourceFailed')); }
+          finally { button.disabled = false; }
+        });
       }
 
       loading?.classList.add('hidden');
       article?.classList.remove('hidden');
     } catch (err) {
       if (err.status === 401) {
-        goLogin('登入已失效，請重新登入。');
+        goLogin(t('note.sessionExpired'));
         return;
       }
-      showError(err.message || '讀取失敗（Auth 離線、檔案已刪，或尚未同步）');
+      showError(err.message || t('note.readFailed'));
     }
   })();
+
+  document.addEventListener('wikinb:locale-change', renderSourceMeta);
 </script>

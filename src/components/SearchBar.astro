@@ -28,7 +28,7 @@ const formAction = action.startsWith('http') ? action : `${base}${action.replace
     <input
       type="search"
       name="q"
-      placeholder="輸入關鍵字，例如：陳老師、數學、分數…"
+      placeholder="Try: teacher name, subject, topic…"
       data-i18n-placeholder="search.placeholder"
       class:list={['search-input', size === 'lg' && 'py-4 text-lg']}
       autocomplete="off"
@@ -39,8 +39,6 @@ const formAction = action.startsWith('http') ? action : `${base}${action.replace
       type="submit"
       class="kc-btn-primary mt-4 w-full justify-center py-3 text-base md:text-lg"
       data-i18n="search.button"
-    >
-      Search
-    </button>
+    >Search</button>
   )}
 </form>

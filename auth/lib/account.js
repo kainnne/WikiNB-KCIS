@@ -2,7 +2,7 @@
  * 帳號角色推斷（2026-07-22 新規）：
  * - 名單明確 admin／teacher／student → 照名單
  * - EXTRA_TEACHER_EMAILS（如 chaos60649）→ teacher（若未標 admin）
- * - 其餘 @kcis.com.tw → student（可事後在 roster 改成 teacher）
+ * - 學校信箱 s/j + 恰好五碼數字前綴 → student，其餘 → teacher（可事後在 roster 改成 teacher）
  * - teacherId 永遠來自信箱 local-part（改暱稱不改資料夾）
  */
 import {
@@ -26,11 +26,14 @@ export function slugifyTeacherId(email) {
 export function resolveAccountRole(rosterEntry, email) {
   const key = normalizeEmail(email);
   const explicit = rosterEntry?.role;
-  if (explicit === 'admin') return 'admin';
+  if (key === 'kainnne@kcis.com.tw') return 'admin';
+  if (key === 'chaos60649@gmail.com') return 'teacher';
+  if (key === 'st101031616@gmail.com') return 'student';
+  if (explicit === 'admin') return 'teacher';
   if (explicit === 'teacher') return 'teacher';
   if (explicit === 'student') return 'student';
   if (getExtraTeacherEmails().includes(key)) return 'teacher';
-  if (isAllowedSchoolEmail(key)) return 'student';
+  if (isAllowedSchoolEmail(key)) return /^[sj]\d{5}(?!\d)/i.test(key.split('@')[0]) ? 'student' : 'teacher';
   return explicit || 'student';
 }
 
@@ -64,9 +67,14 @@ export function effectiveRosterEntry(rawRoster, email) {
 }
 
 export function requiresNicknameOnSetup(_role, purpose = 'setup') {
-  return purpose === 'setup' || purpose === 'login';
+  return false; // Email OTP sign-in assigns a default display name.
 }
 
 export function isTeacherRole(role) {
   return role === 'teacher' || role === 'admin';
+}
+
+export function accountKeywords(user) {
+  const nickname = String(user?.nickname || user?.name || '').trim();
+  return [nickname, user?.role === 'student' ? '學生' : '教職員'].filter(Boolean);
 }

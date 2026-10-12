@@ -203,6 +203,7 @@ function collectMarkdownFiles(dir: string, prefix = ''): string[] {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   const files: string[] = [];
   for (const entry of entries) {
+    if (entry.name === 'private') continue;
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
       files.push(...collectMarkdownFiles(path.join(dir, entry.name), rel));

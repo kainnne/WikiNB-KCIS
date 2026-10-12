@@ -29,5 +29,24 @@ auth/*.json
 !auth/package-lock.json
 !auth/data/*.json
 
+# 本機帳號、私有檔案索引與實際繳交內容永不進版控
+auth/data/users.json
+auth/data/student-accounts.json
+auth/data/private-files.json
+auth/data/audit-log.json
+wiki/teachers/*/private/**
+
 # Cursor / local agent
 .cursor/
+
+# School curriculum is supplied through authenticated storage/private handoff.
+/school-content/
+
+# Private school storage and local agent context
+/data/
+/auth/data/
+!/auth/data/roster.example.json
+/AGENTS.local.md
+/CLAUDE.md
+/AGENTS_Intro/
+/Intro.md

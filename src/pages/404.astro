@@ -4,7 +4,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 const base = import.meta.env.BASE_URL;
 ---
 
-<BaseLayout title="找不到頁面">
+<BaseLayout title="Page not found">
   <div class="animate-fadeIn mx-auto max-w-lg text-center">
     <div class="kc-hero relative overflow-hidden rounded-[1.75rem] border px-8 py-14">
       <div class="kc-hero-glow" aria-hidden="true"></div>
@@ -12,8 +12,8 @@ const base = import.meta.env.BASE_URL;
         <h1 class="font-display text-5xl font-extrabold">
           <span class="brand-gradient-text" data-i18n="notFound.title">404</span>
         </h1>
-        <p class="mt-3 text-kc-muted" data-i18n="notFound.body">找不到這個頁面或筆記。</p>
-        <a href={base} class="kc-btn-primary mt-8 inline-flex" data-i18n="notFound.home">回首頁</a>
+        <p class="mt-3 text-kc-muted" data-i18n="notFound.body">This page or note was not found.</p>
+        <a href={base} class="kc-btn-primary mt-8 inline-flex" data-i18n="notFound.home">Back to main</a>
       </div>
     </div>
   </div>

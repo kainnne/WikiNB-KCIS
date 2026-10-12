@@ -6,6 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isTeacherRole, requiresNicknameOnSetup, slugifyTeacherId } from './lib/account.js';
 import { getDriveStatus } from './lib/drive.js';
+import { CATEGORIES, requireSchool, listLibrary, readLibrary, libraryAttachment, libraryMarkdown, uploadLibrary, verifyIngestSecret, ingestForumSolution, ingestForumArticle } from './lib/school-library.js';
+import { libraryChat } from './lib/library-agent.js';
 import { normalizeEmail, rejectReasonForEmail } from './lib/domain.js';
 import { chatOnce, chatStream, getModelsPayload, stopJob } from './lib/llm.js';
 import { createLoginCode, checkLoginCode, sendCodeEmail, verifyLoginCode } from './lib/mail-code.js';
@@ -20,7 +22,6 @@ import {
 import {
   findUserByEmail,
   ensureUserFromRoster,
-  getUsersFilePath,
   isAccountReady,
   needsNicknameSetup,
   publicUser,
@@ -29,6 +30,20 @@ import {
   setPassword,
   verifyPassword,
 } from './lib/users.js';
+import {
+  authenticateStudent,
+  createOrAttachStudent,
+  detachStudentFromTeacher,
+  findStudentById,
+  listStudentsForTeacher,
+  resetStudentPassword,
+} from './lib/student-accounts.js';
+import {
+  findPublicDocumentByPublishedNote,
+  importUploadedDocument,
+  listUploadedDocuments,
+  readUploadedDocument,
+} from './lib/private-files.js';
 import {
   listSubjectsForTeacher,
   listTeacherFiles,
@@ -44,20 +59,22 @@ import {
   deleteTeacherFile,
   provisionTeacherWorkspace,
   syncTeacherNicknameToWiki,
+  getTeacherMeta,
 } from './lib/wiki.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // override:true — 避免父程序殘留 PORT=8788 蓋掉 auth/.env 的 8790
-dotenv.config({ path: path.join(__dirname, '.env'), override: true });
+dotenv.config({ path: process.env.AUTH_ENV_FILE || path.join(__dirname, '.env'), override: true });
 
 const PORT = Number(process.env.PORT || 8790);
-// 0.0.0.0：同時接受 localhost 與 127.0.0.1（避免本機前端打不通）
-const HOST = process.env.HOST || '0.0.0.0';
+// 本機預設僅綁定 loopback；正式主機由部署設定決定。
+const HOST = process.env.HOST || '127.0.0.1';
 const PROJECT_ROOT = process.env.PROJECT_ROOT || path.resolve(__dirname, '..');
 process.env.PROJECT_ROOT = PROJECT_ROOT;
 
 const app = express();
-app.use(express.json({ limit: '8mb' }));
+const studentLoginAttempts = new Map();
+app.use(express.json({ limit: '18mb' }));
 app.use(cookieParser());
 const allowedOrigins = [
   process.env.FRONTEND_ORIGIN || 'http://127.0.0.1:4322',
@@ -67,7 +84,10 @@ const allowedOrigins = [
   'http://127.0.0.1:4323',
   'http://localhost:4321',
   'http://127.0.0.1:4321',
-  'https://zx50416.github.io',
+  'https://ai-tools.kcis.kainnne.com',
+  'https://wikinb.kcis.kainnne.com',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
   ...(process.env.FRONTEND_ORIGINS || '')
     .split(',')
     .map((s) => s.trim())
@@ -83,7 +103,7 @@ app.use(
       }
       cb(
         null,
-        allowedOrigins.some((o) => origin === o || origin.startsWith(o.replace(/\/$/, ''))),
+        allowedOrigins.some((o) => origin === o.replace(/\/$/, '')),
       );
     },
     credentials: true,
@@ -104,7 +124,23 @@ async function readSession(req) {
     ? header.slice(7).trim()
     : '';
   const cookieTok = req.cookies?.[getSessionCookieName()];
-  return verifySessionToken(bearer || cookieTok);
+  let session = await verifySessionToken(bearer || cookieTok);
+  if (session?.authType === 'student-code') {
+    const account = findStudentById(session.studentAccountId);
+    if (!account || account.active === false || !account.teacherIds?.length) return null;
+    session.teacherIds = account.teacherIds;
+    session.nickname = account.nickname;
+    session.name = account.nickname;
+    session.studentNumber = account.studentNumber;
+  }
+  if(session?.authType==='email-otp') {
+    const user=findUserByEmail(session.email);
+    if(!user?.verifiedAt)return null;
+    const current = resolveLoginRoster(session.email);
+    if (!current) return null;
+    session={...session,...publicUser({...user,role:current.role,teacherId:current.teacherId}),authType:'email-otp'};
+  }
+  return session;
 }
 
 async function requireAuth(req, res, next) {
@@ -132,10 +168,19 @@ async function requireTeacher(req, res, next) {
 }
 
 /** 設 cookie（本機同站）並回傳 token（Pages 跨站用 Bearer） */
+function loginCookieOptions(req) {
+  const options=sessionCookieOptions();
+  if(process.env.NODE_ENV!=='production'&&['localhost','127.0.0.1'].includes(req.hostname)){options.sameSite='lax';options.secure=false;}
+  return options;
+}
 async function issueSession(res, user) {
   const token = await createSessionToken(user);
-  res.cookie(getSessionCookieName(), token, sessionCookieOptions());
+  res.cookie(getSessionCookieName(), token, loginCookieOptions(res.req));
   return token;
+}
+
+function sessionJobKey(user) {
+  return user?.email || (user?.studentAccountId ? `student:${user.studentAccountId}` : 'anonymous');
 }
 
 async function maybeProvisionTeacher(user) {
@@ -160,15 +205,32 @@ async function syncWikiNicknameIfOwner(user) {
   return syncTeacherNicknameToWiki(user.teacherId, user.nickname);
 }
 
+const authRequests=new Map();
+app.use(['/api/auth','/api/library'],(req,res,next)=>{
+ const origin=req.headers.origin;
+ if(!['GET','HEAD','OPTIONS'].includes(req.method)&&origin&&!allowedOrigins.some(o=>origin===o.replace(/\/$/,'')))return res.status(403).json({error:'來源不允許'});
+ next();
+});
+app.use('/api/auth',(req,res,next)=>{
+ if(req.method!=='POST'||req.path==='/logout')return next();
+ const now=Date.now();for(const [k,v]of authRequests)if(v.until<now)authRequests.delete(k);
+ const email=String(req.body?.email||'').toLowerCase().trim().slice(0,160);
+ const sending=['/send-code','/lookup'].includes(req.path);
+ const keys=[{key:'ip:'+req.ip,max:60,ms:600000},...(email?[{key:(sending?'send:':'verify:')+email,max:sending?5:15,ms:sending?3600000:600000}]:[])];
+ if(keys.some(k=>(authRequests.get(k.key)?.count||0)>=k.max))return res.status(429).json({error:'嘗試次數過多，請稍後再試'});
+ for(const k of keys){const row=authRequests.get(k.key)||{count:0,until:now+k.ms};row.count++;authRequests.set(k.key,row);}
+ while(authRequests.size>10000)authRequests.delete(authRequests.keys().next().value);
+ next();
+});
+
 app.get('/api/health', (_req, res) => {
+  const drive = getDriveStatus();
   res.json({
     online: true,
     service: 'wikinb-kcis-api',
-    authMode: 'email-otp',
+    authMode: 'email-otp+student-code',
     llmProvider: process.env.LLM_PROVIDER || 'gemini',
-    drive: getDriveStatus(),
-    rosterFile: getRosterPath(),
-    usersFile: getUsersFilePath(),
+    drive: { configured: Boolean(drive.configured) },
   });
 });
 
@@ -176,7 +238,7 @@ app.get('/api/auth/config', (_req, res) => {
   res.json({
     ok: true,
     mode: 'email-otp',
-    message: '僅 @kcis.com.tw 與核准測試信箱可登入；每次以 Email 驗證碼登入。',
+    message: '僅限設定的校內信箱網域；每次以 Email 驗證碼登入。',
   });
 });
 
@@ -187,12 +249,13 @@ app.get('/api/auth/me', async (req, res) => {
     return;
   }
   const dbUser = findUserByEmail(session.email);
-  const user = dbUser ? publicUser(dbUser) : session;
+  const user = dbUser ? publicUser({...dbUser,role:session.role,teacherId:session.teacherId}) : session;
   res.json({ ok: true, authenticated: true, user });
 });
 
-app.post('/api/auth/logout', (_req, res) => {
-  res.clearCookie(getSessionCookieName(), clearSessionCookieOptions());
+app.post('/api/auth/logout', (req, res) => {
+  const {maxAge,...options}=loginCookieOptions(req);
+  res.clearCookie(getSessionCookieName(), options);
   res.json({ ok: true });
 });
 
@@ -354,13 +417,7 @@ app.post('/api/auth/login-with-code', async (req, res) => {
       res.status(403).json({ error: '此帳號不允許登入' });
       return;
     }
-    if (needsNicknameSetup(email)) {
-      res.status(400).json({
-        error: '首次登入請先設定暱稱',
-        needSetup: true,
-      });
-      return;
-    }
+
 
     let checked = verifyLoginCode(email, code, purpose);
     if (!checked.ok && purpose !== 'login') {
@@ -373,7 +430,7 @@ app.post('/api/auth/login-with-code', async (req, res) => {
 
     ensureUserFromRoster(roster);
     const user = completeOtpLogin(email);
-    await maybeProvisionTeacher(user);
+    // School library creates fixed role/category folders on upload.
     const token = await issueSession(res, user);
     res.json({ ok: true, user, token, message: '登入成功' });
   } catch (err) {
@@ -382,7 +439,7 @@ app.post('/api/auth/login-with-code', async (req, res) => {
   }
 });
 
-/** 首次：驗證碼 + 暱稱 → 登入（不再要求密碼） */
+/** Legacy setup URL: email + OTP only; display name is assigned automatically. */
 app.post('/api/auth/complete-setup', async (req, res) => {
   try {
     const email = normalizeEmail(req.body?.email);
@@ -399,14 +456,10 @@ app.post('/api/auth/complete-setup', async (req, res) => {
       res.status(403).json({ error: '此帳號不允許登入' });
       return;
     }
-    if (requiresNicknameOnSetup(roster.role, 'setup') && !nickname) {
-      res.status(400).json({ error: '首次設定請填寫暱稱（顯示名稱）' });
-      return;
-    }
 
-    let checked = verifyLoginCode(email, code, purpose);
+    let checked = checkLoginCode(email, code, purpose);
     if (!checked.ok) {
-      checked = verifyLoginCode(email, code, purpose === 'login' ? 'setup' : 'login');
+      checked = checkLoginCode(email, code, purpose === 'login' ? 'setup' : 'login');
     }
     if (!checked.ok) {
       res.status(400).json({ error: checked.error });
@@ -415,8 +468,9 @@ app.post('/api/auth/complete-setup', async (req, res) => {
 
     ensureUserFromRoster(roster);
     const user = completeOtpLogin(email, { nickname });
-    await maybeProvisionTeacher(user);
-    await syncWikiNicknameIfOwner(user);
+    verifyLoginCode(email, code, checked.purpose);
+    // School library creates fixed role/category folders on upload.
+    // Shared library does not create per-person Drive folders.
     const token = await issueSession(res, user);
     res.json({
       ok: true,
@@ -463,7 +517,7 @@ app.post('/api/auth/set-password', async (req, res) => {
       }
       ensureUserFromRoster(roster);
       const user = completeOtpLogin(email, { nickname });
-      await maybeProvisionTeacher(user);
+      // School library creates fixed role/category folders on upload.
       const token = await issueSession(res, user);
       res.json({ ok: true, user, token, message: '已登入' });
       return;
@@ -489,7 +543,7 @@ app.post('/api/auth/set-password', async (req, res) => {
 
     ensureUserFromRoster(roster);
     const user = await setPassword(email, password, { nickname });
-    await maybeProvisionTeacher(user);
+    // School library creates fixed role/category folders on upload.
     const token = await issueSession(res, user);
     res.json({
       ok: true,
@@ -528,8 +582,8 @@ app.post('/api/auth/login', async (req, res) => {
       res.status(401).json({ error: 'Email 或密碼錯誤。建議改用驗證碼登入。' });
       return;
     }
-    await maybeProvisionTeacher(user);
-    const token = await issueSession(res, user);
+    // School library creates fixed role/category folders on upload.
+    const token = await issueSession(res,{...user,authType:'password'});
     res.json({ ok: true, user, token, message: '登入成功' });
   } catch (err) {
     console.error('login:', err);
@@ -537,12 +591,57 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+/** 老師核發的永久學生代碼登入（不寄驗證信） */
+app.post('/api/auth/student-login', async (req, res) => {
+  try {
+    const nickname = String(req.body?.nickname || '').trim();
+    const password = String(req.body?.password || '');
+    if (!nickname || !password) {
+      res.status(400).json({ error: '請輸入暱稱與 6 碼登入密碼' });
+      return;
+    }
+    const attemptKey = `${req.ip || 'unknown'}:${nickname.normalize('NFKC').toLowerCase()}`;
+    const attempt = studentLoginAttempts.get(attemptKey);
+    if (attempt?.lockedUntil > Date.now()) {
+      res.status(429).json({ error: '嘗試次數過多，請 10 分鐘後再試或聯絡老師重設密碼' });
+      return;
+    }
+    const account = await authenticateStudent(nickname, password);
+    if (!account) {
+      const failures = (attempt?.failures || 0) + 1;
+      studentLoginAttempts.set(attemptKey, {
+        failures,
+        lockedUntil: failures >= 5 ? Date.now() + 10 * 60 * 1000 : 0,
+      });
+      res.status(401).json({ error: '暱稱或登入密碼錯誤' });
+      return;
+    }
+    studentLoginAttempts.delete(attemptKey);
+    const user = {
+      email: '',
+      name: account.nickname,
+      nickname: account.nickname,
+      role: 'student',
+      authType: 'student-code',
+      studentAccountId: account.id,
+      studentNumber: account.studentNumber,
+      teacherIds: account.teacherIds || [],
+      teacherId: '',
+    };
+    const token = await issueSession(res, user);
+    res.json({ ok: true, user, token, message: '學生登入成功' });
+  } catch (err) {
+    res.status(400).json({ error: err.message || '學生登入失敗' });
+  }
+});
+
 /** 登入後修改暱稱（teacherId／Drive 資料夾不變） */
 app.patch('/api/auth/nickname', requireAuth, async (req, res) => {
   try {
     const nickname = String(req.body?.nickname || '').trim();
-    const user = updateNickname(req.user.email, nickname);
-    await syncWikiNicknameIfOwner(user);
+    const user = {...updateNickname(req.user.email, nickname),role:req.user.role,teacherId:req.user.teacherId};
+    user.keywords = publicUser(user).keywords;
+    // Shared library does not create per-person Drive folders.
     const token = await issueSession(res, user);
     res.json({ ok: true, user, token, message: '暱稱已更新' });
   } catch (err) {
@@ -555,7 +654,7 @@ app.get('/api/codex/models', requireAuth, (_req, res) => {
 });
 
 app.post('/api/codex/stop', requireAuth, (req, res) => {
-  const key = req.user?.email || '';
+  const key = sessionJobKey(req.user);
   const result = stopJob(key);
   res.json({
     ok: true,
@@ -565,6 +664,7 @@ app.post('/api/codex/stop', requireAuth, (req, res) => {
 });
 
 app.post('/api/codex/chat', requireAuth, async (req, res) => {
+  if(String(process.env.LLM_PROVIDER||'gemini').toLowerCase()==='codex')return res.status(403).json({error:'校內資料問答不開放本機 CLI，請使用資料庫問答'});
   const { message, model, reasoningEffort, history, teacherId, subjectId } = req.body || {};
   if (!message?.trim()) {
     res.status(400).json({ error: '請輸入訊息' });
@@ -583,13 +683,22 @@ app.post('/api/codex/chat', requireAuth, async (req, res) => {
       reasoningEffort,
       teacherId,
       subjectId,
-      sessionKey: req.user.email,
+      sessionKey: sessionJobKey(req.user),
+      user: req.user,
     });
     return;
   }
 
   try {
-    const result = await chatOnce({ message, history, model, reasoningEffort, teacherId, subjectId });
+    const result = await chatOnce({
+      message,
+      history,
+      model,
+      reasoningEffort,
+      teacherId,
+      subjectId,
+      user: req.user,
+    });
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error('chat:', err);
@@ -663,6 +772,19 @@ app.get('/api/wiki/read', requireAuth, async (req, res) => {
       slug,
       allowDrive,
     });
+    const imported = findPublicDocumentByPublishedNote({
+      teacherId: targetTeacherId,
+      subjectId,
+      slug,
+    });
+    if (imported) {
+      result.source = {
+        fileId: imported.id,
+        type: imported.sourceType || path.extname(imported.originalName || '').slice(1).toLowerCase(),
+        originalName: imported.originalName,
+        pageCount: imported.sourcePageCount,
+      };
+    }
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message || '無法讀取筆記' });
@@ -671,8 +793,8 @@ app.get('/api/wiki/read', requireAuth, async (req, res) => {
 
 app.post('/api/wiki/upload', requireTeacher, async (req, res) => {
   try {
-    const { filename, content, subjectId, teacherId } = req.body || {};
-    const result = await uploadTeacherFile(req.user, { filename, content, subjectId, teacherId });
+    const { filename, content, subjectId, teacherId, keywords } = req.body || {};
+    const result = await uploadTeacherFile(req.user, { filename, content, subjectId, teacherId, keywords });
     res.json(result);
   } catch (err) {
     console.error('wiki upload:', err);
@@ -693,6 +815,98 @@ app.post('/api/wiki/upload-image', requireTeacher, async (req, res) => {
   } catch (err) {
     console.error('wiki upload-image:', err);
     res.status(400).json({ error: err.message || '圖片上傳失敗' });
+  }
+});
+
+/** 老師建立／連結學生；密碼只在建立或重設當下回傳一次。 */
+app.get('/api/students', requireTeacher, (req, res) => {
+  try {
+    const teacherId = resolveWriteTeacherId(req.user, req.query.teacherId);
+    if (!teacherId) throw new Error('請指定 teacherId');
+    res.json({ ok: true, teacherId, students: listStudentsForTeacher(teacherId) });
+  } catch (err) {
+    res.status(400).json({ error: err.message || '無法讀取學生名單' });
+  }
+});
+
+app.post('/api/students', requireTeacher, async (req, res) => {
+  try {
+    const teacherId = resolveWriteTeacherId(req.user, req.body?.teacherId);
+    if (!teacherId) throw new Error('請指定 teacherId');
+    const result = await createOrAttachStudent({
+      teacherId,
+      studentNumber: req.body?.studentNumber,
+      nickname: req.body?.nickname,
+    });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(400).json({ error: err.message || '無法建立學生登入' });
+  }
+});
+
+app.post('/api/students/:studentId/reset-password', requireTeacher, async (req, res) => {
+  try {
+    const teacherId = resolveWriteTeacherId(req.user, req.body?.teacherId);
+    if (!teacherId) throw new Error('請指定 teacherId');
+    const result = await resetStudentPassword({ teacherId, studentId: req.params.studentId });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(400).json({ error: err.message || '無法重設學生密碼' });
+  }
+});
+
+app.delete('/api/students/:studentId', requireTeacher, (req, res) => {
+  try {
+    const teacherId = resolveWriteTeacherId(req.user, req.body?.teacherId);
+    if (!teacherId) throw new Error('請指定 teacherId');
+    const student = detachStudentFromTeacher({ teacherId, studentId: req.params.studentId });
+    res.json({ ok: true, student, message: '已撤銷此學生在你的課堂資格' });
+  } catch (err) {
+    res.status(400).json({ error: err.message || '無法撤銷學生資格' });
+  }
+});
+
+app.get('/api/student/classes', requireAuth, (req, res) => {
+  if (req.user.authType !== 'student-code') {
+    res.status(403).json({ error: '此功能僅供老師核發的學生帳號使用' });
+    return;
+  }
+  const classes = (req.user.teacherIds || []).map((teacherId) => {
+    const meta = getTeacherMeta(teacherId);
+    return {
+      teacherId,
+      name: meta.displayName || meta.name || teacherId,
+    };
+  });
+  res.json({ ok: true, classes });
+});
+
+/** 統一文件匯入：學生永遠 private；老師可選 public/private。 */
+app.post('/api/files/import', requireAuth, async (req, res) => {
+  try {
+    const result = await importUploadedDocument(req.user, req.body || {});
+    res.json(result);
+  } catch (err) {
+    console.error('file import:', err);
+    res.status(400).json({ error: err.message || '文件匯入失敗' });
+  }
+});
+
+app.get('/api/files', requireAuth, (req, res) => {
+  try {
+    res.json({ ok: true, files: listUploadedDocuments(req.user, { teacherId: req.query.teacherId }) });
+  } catch (err) {
+    res.status(400).json({ error: err.message || '無法讀取上傳紀錄' });
+  }
+});
+
+app.get('/api/files/:fileId/download', requireAuth, (req, res) => {
+  try {
+    const { record, absolutePath } = readUploadedDocument(req.user, req.params.fileId);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.download(absolutePath, record.originalName);
+  } catch (err) {
+    res.status(404).json({ error: err.message || '找不到檔案' });
   }
 });
 
@@ -724,6 +938,7 @@ app.post('/api/wiki/delete', requireTeacher, async (req, res) => {
 });
 
 app.post('/api/sync', requireTeacher, async (req, res) => {
+  if(req.user.email!=='kainnne@kcis.com.tw'||process.env.ENABLE_LEGACY_GIT_SYNC!=='true')return res.status(403).json({error:'Git 發布僅供管理員明確啟用後操作'});
   try {
     const result = await runWikiSync(req.user);
     res.json(result);
@@ -731,6 +946,50 @@ app.post('/api/sync', requireTeacher, async (req, res) => {
     console.error('sync:', err);
     res.status(500).json({ error: '同步失敗', detail: String(err.message || err) });
   }
+});
+
+async function requireSchoolAuth(req,res,next) {
+ try { const session=await readSession(req); requireSchool(session); req.user=session; next(); }
+ catch(error){res.status(error.status||401).json({error:error.message});}
+}
+app.get('/api/auth/shared-session',requireSchoolAuth,async(req,res)=>{
+ const token=await createSessionToken(req.user,{expiresIn:'15m'});
+ res.set('Cache-Control','private, no-store').json({user:req.user,token,admin:req.user.email==='kainnne@kcis.com.tw'});
+});
+app.use('/api/library',(req,res,next)=>{res.set('Cache-Control','private, no-store');next();});
+app.post('/api/library/forum-solutions',async(req,res)=>{
+ if(!verifyIngestSecret(req.headers.authorization))return res.status(401).json({error:'Unauthorized'});
+ try{res.json(await ingestForumSolution(req.body));}catch(e){res.status(400).json({error:e.message});}
+});
+app.post('/api/library/forum-articles',async(req,res)=>{
+ if(!verifyIngestSecret(req.headers.authorization))return res.status(401).json({error:'Unauthorized'});
+ try{res.json(await ingestForumArticle(req.body));}catch(e){res.status(400).json({error:e.message});}
+});
+app.get('/api/library',requireSchoolAuth,(req,res)=>{
+ try{res.json({categories:CATEGORIES.map(({terms,...c})=>c),files:listLibrary(req.user,req.query)});}catch(e){res.status(e.status||400).json({error:e.message});}
+});
+app.post('/api/library/upload',requireSchoolAuth,async(req,res)=>{
+ try{res.status(201).json(await uploadLibrary(req.user,req.body));}catch(e){res.status(e.status||400).json({error:e.message});}
+});
+app.get('/api/library/files/:id',requireSchoolAuth,(req,res)=>{
+ try{res.json(readLibrary(req.user,req.params.id));}catch(e){res.status(e.status||400).json({error:e.message});}
+});
+function downloadLibrary(req,res){
+ try{const item=libraryAttachment(req.user,req.params.id,req.params.asset);res.set('X-Content-Type-Options','nosniff');res.download(item.file,item.filename);}catch(e){res.status(e.status||400).json({error:e.message});}
+}
+app.get('/api/library/files/:id/markdown',requireSchoolAuth,(req,res)=>{
+ try{const item=libraryMarkdown(req.user,req.params.id);res.set('X-Content-Type-Options','nosniff');res.download(item.file,item.filename);}catch(e){res.status(e.status||400).json({error:e.message});}
+});
+app.get('/api/library/files/:id/download',requireSchoolAuth,downloadLibrary);
+app.get('/api/library/files/:id/assets/:asset',requireSchoolAuth,downloadLibrary);
+const libraryChatUsage=new Map();
+app.post('/api/library/chat',requireSchoolAuth,async(req,res)=>{
+ const message=String(req.body?.message||'').trim();if(!message||message.length>4000)return res.status(400).json({error:'問題須為 1–4000 字'});
+ const bucket=Math.floor(Date.now()/3600000),key=req.user.email+':'+bucket;
+ if((libraryChatUsage.get(key)||0)>=20)return res.status(429).json({error:'每小時最多 20 則提問'});
+ libraryChatUsage.set(key,(libraryChatUsage.get(key)||0)+1);
+ for(const k of libraryChatUsage.keys())if(!k.endsWith(':'+bucket))libraryChatUsage.delete(k);
+ try{res.json(await libraryChat(req.user,message));}catch(e){res.status(503).json({error:'AI 暫時無法使用，請確認後台設定'});}
 });
 
 app.listen(PORT, HOST, () => {

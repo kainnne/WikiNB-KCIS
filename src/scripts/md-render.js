@@ -4,6 +4,7 @@
  */
 import { marked } from 'marked';
 import katex from 'katex';
+import DOMPurify from 'dompurify';
 
 marked.setOptions({ breaks: true, gfm: true });
 
@@ -115,7 +116,7 @@ export function markdownToHtml(markdown, { base = '/WikiNB-KCIS/', linkifyWiki =
   const withMath = renderMathInMarkdown(stripped);
   let html = String(marked.parse(withMath, { async: false }));
   if (linkifyWiki) html = linkifyWikiLinks(html, base);
-  return html;
+  return DOMPurify.sanitize(html, { ADD_ATTR: ['loading'] });
 }
 
 export function notePageHref({ teacherId, subjectId, slug, base }) {

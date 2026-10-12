@@ -1,26 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import { normalizeEmail } from './domain.js';
-import { effectiveRosterEntry, isTeacherRole } from './account.js';
-import { validateNickname, assertTeacherNicknameAvailable } from './nickname.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
+import { effectiveRosterEntry, isTeacherRole, accountKeywords } from './account.js';
+import { validateNickname } from './nickname.js';
+import { assertStoredNicknameAvailable, usersStorePath } from './nickname-store.js';
 
 function ensureStore() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(USERS_FILE)) {
-    fs.writeFileSync(USERS_FILE, JSON.stringify({ users: [] }, null, 2), 'utf8');
+  fs.mkdirSync(path.dirname(usersStorePath()), { recursive: true });
+  if (!fs.existsSync(usersStorePath())) {
+    fs.writeFileSync(usersStorePath(), JSON.stringify({ users: [] }, null, 2), 'utf8');
   }
 }
 
 function readStore() {
   ensureStore();
   try {
-    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+    return JSON.parse(fs.readFileSync(usersStorePath(), 'utf8'));
   } catch {
     return { users: [] };
   }
@@ -28,7 +24,7 @@ function readStore() {
 
 function writeStore(store) {
   ensureStore();
-  fs.writeFileSync(USERS_FILE, JSON.stringify(store, null, 2), 'utf8');
+  fs.writeFileSync(usersStorePath(), JSON.stringify(store, null, 2), 'utf8');
 }
 
 export function findUserByEmail(email) {
@@ -39,10 +35,20 @@ export function findUserByEmail(email) {
 export function publicUser(user) {
   if (!user) return null;
   const { passwordHash, ...rest } = user;
-  return rest;
+  return { ...rest, keywords: accountKeywords(user) };
 }
 
 /** 從 roster／網域規則建立／更新使用者殼 */
+function defaultNickname(email) {
+  const base = email.split('@')[0];
+  for (let suffix = 1; suffix < 10000; suffix++) {
+    const candidate = suffix === 1 ? base : `${base}_${suffix}`;
+    try { assertStoredNicknameAvailable(candidate, { email }); return candidate; }
+    catch (error) { if (error.code !== 'nickname_taken') throw error; }
+  }
+  throw new Error('Could not assign a display name. Please contact the administrator.');
+}
+
 export function ensureUserFromRoster(rosterEntry) {
   const effective = effectiveRosterEntry(rosterEntry, rosterEntry.email) || rosterEntry;
   const store = readStore();
@@ -54,7 +60,8 @@ export function ensureUserFromRoster(rosterEntry) {
     user = {
       email: key,
       name: effective.name || key,
-      nickname: effective.nickname || '',
+      nickname: defaultNickname(key),
+      nicknameCustomized: false,
       role: effective.role || 'student',
       teacherId: effective.teacherId || '',
       passwordHash: '',
@@ -67,6 +74,7 @@ export function ensureUserFromRoster(rosterEntry) {
     store.users.push(user);
   } else {
     user.name = effective.name || user.name;
+    if (!user.nickname) { user.nickname = defaultNickname(key); user.nicknameCustomized = false; }
     // 角色以 roster／規則為準（管理員改 student→teacher 會反映進來）
     user.role = effective.role || user.role;
     if (effective.teacherId) user.teacherId = effective.teacherId;
@@ -88,9 +96,7 @@ export async function setPassword(email, password, { nickname } = {}) {
     const checked = validateNickname(nickname);
     if (!checked.ok) throw new Error(checked.error);
     if (!user.nickname) {
-      if (isTeacherRole(user.role)) {
-        assertTeacherNicknameAvailable(store.users, checked.nickname, key);
-      }
+      assertStoredNicknameAvailable(checked.nickname, { email: key });
       user.nickname = checked.nickname;
     }
   }
@@ -100,16 +106,24 @@ export async function setPassword(email, password, { nickname } = {}) {
     throw new Error('首次設定請填寫暱稱（顯示名稱）');
   }
 
-  user.passwordHash = await bcrypt.hash(String(password), 10);
-  user.passwordSetAt = new Date().toISOString();
-  user.verifiedAt = user.verifiedAt || user.passwordSetAt;
-  user.updatedAt = user.passwordSetAt;
-  writeStore(store);
-  return publicUser(user);
+  const hash = await bcrypt.hash(String(password), 10);
+  const latest = readStore();
+  const current = latest.users.find(u => normalizeEmail(u.email) === key);
+  if (!current) throw new Error('Account not found');
+  if (!current.nickname) {
+    assertStoredNicknameAvailable(user.nickname, { email: key });
+    current.nickname = user.nickname;
+  }
+  current.passwordHash = hash;
+  current.passwordSetAt = new Date().toISOString();
+  current.verifiedAt = current.verifiedAt || current.passwordSetAt;
+  current.updatedAt = current.passwordSetAt;
+  writeStore(latest);
+  return publicUser(current);
 }
 
 /** 驗證碼登入完成：寫入暱稱（首次）並標記已驗證 */
-export function completeOtpLogin(email, { nickname } = {}) {
+export function completeOtpLogin(email) {
   const store = readStore();
   const key = normalizeEmail(email);
   const user = store.users.find((u) => normalizeEmail(u.email) === key);
@@ -117,12 +131,8 @@ export function completeOtpLogin(email, { nickname } = {}) {
 
   const now = new Date().toISOString();
   if (!user.nickname) {
-    const checked = validateNickname(nickname || '');
-    if (!checked.ok) throw new Error(checked.error);
-    if (isTeacherRole(user.role)) {
-      assertTeacherNicknameAvailable(store.users, checked.nickname, key);
-    }
-    user.nickname = checked.nickname;
+    user.nickname = defaultNickname(key);
+    user.nicknameCustomized = false;
   }
 
   user.verifiedAt = user.verifiedAt || now;
@@ -141,11 +151,10 @@ export function updateNickname(email, nickname) {
   const user = store.users.find((u) => normalizeEmail(u.email) === key);
   if (!user) throw new Error('找不到使用者');
 
-  if (isTeacherRole(user.role)) {
-    assertTeacherNicknameAvailable(store.users, checked.nickname, key);
-  }
+  assertStoredNicknameAvailable(checked.nickname, { email: key });
 
   user.nickname = checked.nickname;
+  user.nicknameCustomized = true;
   user.updatedAt = new Date().toISOString();
   writeStore(store);
   return publicUser(user);
@@ -179,9 +188,8 @@ export function isAccountReady(email) {
   return Boolean(user.verifiedAt || user.passwordHash);
 }
 
-export function needsNicknameSetup(email) {
-  const user = findUserByEmail(email);
-  return !String(user?.nickname || '').trim();
+export function needsNicknameSetup(_email) {
+  return false; // Display names are assigned from the verified email, never requested at sign-in.
 }
 
 export function listUsers() {
@@ -190,5 +198,5 @@ export function listUsers() {
 
 export function getUsersFilePath() {
   ensureStore();
-  return USERS_FILE;
+  return usersStorePath();
 }

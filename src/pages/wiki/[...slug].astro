@@ -33,10 +33,10 @@ const loginPath = `${base}login?next=${encodeURIComponent(notePath)}`;
   <div class="animate-fadeIn mx-auto max-w-lg">
     <div class="kc-card p-8 text-center">
       <p class="font-display text-xl font-bold text-kc-blue-deep">{page.title}</p>
-      <p class="mt-2 text-sm text-kc-muted">正在開啟…</p>
+      <p class="mt-2 text-sm text-kc-muted" data-i18n="note.opening">Opening…</p>
       <noscript>
-        <p class="mt-4 text-sm text-kc-muted">請先登入後閱讀此筆記。</p>
-        <a href={loginPath} class="kc-btn-primary mt-4 inline-flex">前往登入</a>
+        <p class="mt-4 text-sm text-kc-muted" data-i18n="note.loginRequired">Sign in before reading this note.</p>
+        <a href={loginPath} class="kc-btn-primary mt-4 inline-flex" data-i18n="note.goLogin">Go to login</a>
       </noscript>
     </div>
   </div>

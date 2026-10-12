@@ -10,39 +10,17 @@ const recent = pages.slice(0, 6);
 ---
 
 <BaseLayout title="WikiNB" description={sites.brand.tagline}>
-  <section class="animate-fadeIn mb-16">
-    <div class="kc-hero relative mx-auto max-w-3xl overflow-hidden rounded-[1.75rem] border px-6 py-12 text-center sm:px-10 sm:py-16">
-      <div class="kc-hero-glow" aria-hidden="true"></div>
-      <span class="kc-sparkles" aria-hidden="true">
-        <span class="kc-sparkle kc-sparkle-a">✦</span>
-        <span class="kc-sparkle kc-sparkle-b">✧</span>
-        <span class="kc-diamond">◇</span>
-        <span class="kc-hero-orb kc-hero-orb-a"></span>
-        <span class="kc-hero-orb kc-hero-orb-b"></span>
-      </span>
-
-      <div class="relative z-[1]">
-        <h1 class="font-display text-4xl font-extrabold tracking-tight md:text-5xl lg:text-6xl">
-          <span class="brand-gradient-text">WikiNB</span>
-        </h1>
-        <p
-          class="mx-auto mt-4 max-w-md text-base leading-relaxed text-kc-muted md:text-lg"
-          data-i18n="home.tagline"
-        >
-          康橋教學筆記庫
-        </p>
-        <div class="mx-auto mt-8 max-w-lg">
-          <HomeSearch />
-        </div>
-      </div>
-    </div>
+  <section class="school-home-hero">
+    <h1 class="font-display text-4xl font-extrabold tracking-tight sm:text-5xl"><span class="brand-gradient-text">WikiNB</span></h1>
+    <a href={`${import.meta.env.BASE_URL}codex`} class="kc-btn-ai home-ai-entry" data-i18n="nav.gemini">KCIS AI</a>
+    <div class="home-search-wrap"><HomeSearch /></div>
   </section>
 
   {recent.length > 0 && (
     <section class="animate-fadeIn">
       <h2 class="mb-6 font-display text-2xl font-bold text-kc-blue-deep">
-        <span class="mr-2 inline-block text-kc-purple/70" aria-hidden="true">✦</span>
-        <span data-i18n="home.recent">最近更新</span>
+
+        <span data-i18n="home.recent">Recently updated</span>
       </h2>
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {recent.map((page) => (
@@ -62,3 +40,7 @@ const recent = pages.slice(0, 6);
     </section>
   )}
 </BaseLayout>
+
+<style>
+  .school-home-hero{display:flex;align-items:center;flex-direction:column;gap:28px;padding:40px 0 48px;text-align:center}.home-ai-entry{min-width:172px;padding:13px 30px;font-size:20px}.home-search-wrap{width:min(100%,600px);margin-top:4px}@media(max-width:640px){.school-home-hero{padding:24px 0 36px;gap:24px}.home-ai-entry{font-size:18px}}
+</style>

@@ -483,6 +483,8 @@ export async function codexChatStream(message, onEvent = () => {}, options = {})
   };
   const tok = getStoredToken();
   if (tok) headers.Authorization = `Bearer ${tok}`;
+  const deadline=AbortSignal.timeout(50000);
+  const signal=options.signal?AbortSignal.any([options.signal,deadline]):deadline;
   const res = await fetch(`${getAuthBase()}/api/codex/chat?stream=1`, {
     method: 'POST',
     credentials: 'include',
@@ -495,7 +497,7 @@ export async function codexChatStream(message, onEvent = () => {}, options = {})
       teacherId: options.teacherId,
       subjectId: options.subjectId,
     }),
-    signal: options.signal,
+    signal,
   });
 
   if (!res.ok) {
@@ -533,7 +535,8 @@ export async function codexChatStream(message, onEvent = () => {}, options = {})
       }
     }
   } catch (err) {
-    if (err?.name === 'AbortError') {
+    if (deadline.aborted) throw new Error('AI connection timed out. Please try again.');
+    if (err?.name === 'AbortError' && options.signal?.aborted) {
       return { type: 'done', ok: true, stopped: true, answer: t('gemini.stopped') };
     }
     throw err;
@@ -743,6 +746,7 @@ export async function mountNavAuth() {
   };
 
   const openMenu = () => {
+    closeMobileMenu();
     userMenu?.classList.remove('hidden');
     userLabel?.setAttribute('aria-expanded', 'true');
   };
@@ -753,12 +757,13 @@ export async function mountNavAuth() {
   };
 
   const openMobileMenu = () => {
+    closeMenu();
     mobileMenu?.classList.remove('hidden');
     mobileToggle?.setAttribute('aria-expanded', 'true');
   };
 
   const setRoleCta = ({ link, label, teacher, student, classroomStudent }) => {
-    const showCta = teacher || student;
+    const showCta = teacher || classroomStudent;
     link?.classList.toggle('hidden', !showCta);
     if (!link || !label || !showCta) return;
     if (teacher) {
@@ -790,7 +795,7 @@ export async function mountNavAuth() {
     navAi?.classList.toggle('hidden', loggedIn);
     // 彩色 CTA：老師 → My notes；學生 → Gemini × KCIS
     if (navRoleCta) {
-      const showCta = teacher || student;
+      const showCta = teacher || classroomStudent;
       navRoleCta.classList.toggle('is-cta-visible', showCta);
       navRoleCta.toggleAttribute('hidden', !showCta);
       navRoleCta.setAttribute('aria-hidden', showCta ? 'false' : 'true');
@@ -828,7 +833,7 @@ export async function mountNavAuth() {
     editNicknameLink?.classList.toggle('hidden', classroomStudent);
     if (userWrap && userLabel) {
       if (loggedIn) {
-        userLabel.textContent = helloLabel(me.user);
+        userLabel.textContent = me.user.nickname || me.user.name || me.user.email?.split('@')[0] || t('nav.accountMenu');
         userLabel.title = t('nav.accountMenu');
         userWrap.classList.remove('hidden');
       } else {

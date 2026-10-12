@@ -21,6 +21,7 @@ const { slug, title, description, teacher, subject, subjectEn, date, teacherId, 
   Astro.props;
 const base = import.meta.env.BASE_URL;
 const subjectLabelEn = subjectEn || subject;
+const summary = String(description || '').replace(/<[^>]*(?:>|$)/g, ' ').replace(/\s+/g, ' ').trim();
 
 const parts = String(slug || '').split('/').filter(Boolean);
 const tid = teacherId || (parts[0] === 'teachers' ? parts[1] : '');
@@ -44,12 +45,12 @@ const loginHref = `${base}login?next=${encodeURIComponent(notePath)}`;
 
   <div class="mb-2 flex min-h-[1.5rem] flex-wrap gap-2">
     {teacher ? (
-      <span class="tag-keyword">{teacher}</span>
+      <span class="tag-badge">{teacher}</span>
     ) : (
       <span class="tag-badge invisible select-none" aria-hidden="true">占位</span>
     )}
     {subject ? (
-      <span class="tag-keyword" data-locale-text data-zh={subject} data-en={subjectLabelEn}>
+      <span class="tag-badge" data-locale-text data-zh={subject} data-en={subjectLabelEn}>
         {subject}
       </span>
     ) : (
@@ -58,12 +59,13 @@ const loginHref = `${base}login?next=${encodeURIComponent(notePath)}`;
   </div>
 
   <h3 class="line-clamp-1 font-display text-lg font-bold text-kc-blue-deep md:text-xl">{title}</h3>
-  <p class="mt-2 line-clamp-2 flex-1 text-sm leading-relaxed text-kc-muted">{description}</p>
-  <p class="wiki-card-hint mt-3 text-xs font-semibold text-kc-blue">登入後閱讀 →</p>
+  <p class="mt-2 line-clamp-2 flex-1 text-sm leading-relaxed text-kc-muted">{summary}</p>
+  <p class="wiki-card-hint mt-3 text-xs font-semibold text-kc-blue"></p>
 </a>
 
 <script>
   import { hasSessionHint } from '../scripts/auth-client.js';
+  import { t } from '../scripts/i18n.js';
 
   function wirePreviewCards() {
     const hinted = hasSessionHint();
@@ -73,14 +75,15 @@ const loginHref = `${base}login?next=${encodeURIComponent(notePath)}`;
       const hintEl = el.querySelector('.wiki-card-hint');
       if (hinted && note) {
         el.setAttribute('href', note);
-        if (hintEl) hintEl.textContent = '開啟筆記 →';
+        if (hintEl) hintEl.textContent = t('wiki.openNote');
       } else if (login) {
         el.setAttribute('href', login);
-        if (hintEl) hintEl.textContent = '登入後閱讀 →';
+        if (hintEl) hintEl.textContent = t('wiki.loginToRead');
       }
     });
   }
 
   wirePreviewCards();
   document.addEventListener('wikinb:auth-change', () => wirePreviewCards());
+  document.addEventListener('wikinb:locale-change', () => wirePreviewCards());
 </script>

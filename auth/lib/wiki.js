@@ -209,6 +209,12 @@ export function normalizeSlug(input) {
   return raw.slice(0, 80);
 }
 
+function normalizePublicFolderId(input) {
+  const value = String(input || '').trim();
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(value) || value === 'private') return null;
+  return value;
+}
+
 function splitFrontmatter(content) {
   const text = String(content || '');
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
@@ -245,8 +251,10 @@ function splitFrontmatter(content) {
 }
 
 function extractTitle(content, fallbackSlug) {
-  const { data } = splitFrontmatter(content);
+  const { data, body } = splitFrontmatter(content);
   if (data.title) return String(data.title).trim();
+  const heading = body.match(/^#\s+(.+)$/m);
+  if (heading?.[1]) return heading[1].replace(/\\([\\`*_[\]<>])/g, '$1').trim();
   return fallbackSlug;
 }
 
@@ -562,46 +570,48 @@ export async function readTeacherFile(user, { subjectId, slug, teacherId: reqTea
  */
 export async function readWikiNoteContent({ teacherId, subjectId, slug, allowDrive = true }) {
   const noteSlug = normalizeSlug(slug);
+  const safeTeacherId = normalizePublicFolderId(teacherId);
+  const safeSubjectId = normalizePublicFolderId(subjectId);
   if (!noteSlug) throw new Error('檔名無效');
-  if (!subjectId) throw new Error('請指定 subjectId');
-  if (!teacherId) throw new Error('請指定 teacherId');
+  if (!safeSubjectId) throw new Error('subjectId 無效或不可公開讀取');
+  if (!safeTeacherId) throw new Error('teacherId 無效');
 
-  const localPath = path.join(subjectDir(teacherId, subjectId), `${noteSlug}.md`);
+  const localPath = path.join(subjectDir(safeTeacherId, safeSubjectId), `${noteSlug}.md`);
   if (fs.existsSync(localPath)) {
     const content = fs.readFileSync(localPath, 'utf8');
     return {
       ok: true,
-      teacherId,
-      subjectId,
+      teacherId: safeTeacherId,
+      subjectId: safeSubjectId,
       slug: noteSlug,
       filename: `${noteSlug}.md`,
       content,
       title: extractTitle(content, noteSlug),
       storage: 'local',
-      wikiSlug: `teachers/${teacherId}/${subjectId}/${noteSlug}`,
+      wikiSlug: `teachers/${safeTeacherId}/${safeSubjectId}/${noteSlug}`,
     };
   }
 
   if (allowDrive && isDriveConfigured()) {
-    const file = await readTeacherMarkdown(teacherId, subjectId, noteSlug);
+    const file = await readTeacherMarkdown(safeTeacherId, safeSubjectId, noteSlug);
     // 讀到即寫回本機鏡像，讓 WikiNB 目錄／下次建置看得到
     try {
-      fs.mkdirSync(subjectDir(teacherId, subjectId), { recursive: true });
+      fs.mkdirSync(subjectDir(safeTeacherId, safeSubjectId), { recursive: true });
       fs.writeFileSync(localPath, file.content, 'utf8');
-      upsertWikiIndexLink(teacherId, subjectId, noteSlug, extractTitle(file.content, noteSlug));
+      upsertWikiIndexLink(safeTeacherId, safeSubjectId, noteSlug, extractTitle(file.content, noteSlug));
     } catch (err) {
       console.warn('mirror drive→local failed:', err.message || err);
     }
     return {
       ok: true,
-      teacherId,
-      subjectId,
+      teacherId: safeTeacherId,
+      subjectId: safeSubjectId,
       slug: noteSlug,
       filename: file.filename,
       content: file.content,
       title: extractTitle(file.content, noteSlug),
       storage: 'google-drive',
-      wikiSlug: `teachers/${teacherId}/${subjectId}/${noteSlug}`,
+      wikiSlug: `teachers/${safeTeacherId}/${safeSubjectId}/${noteSlug}`,
     };
   }
 
@@ -623,7 +633,7 @@ export function buildLocalWikiCatalog() {
     const teacherName = teacherMeta.displayName || teacherMeta.name || teacherId;
     const tDir = path.join(teachersRoot, teacherId);
     for (const sEnt of fs.readdirSync(tDir, { withFileTypes: true })) {
-      if (!sEnt.isDirectory() || sEnt.name.startsWith('_')) continue;
+      if (!sEnt.isDirectory() || sEnt.name.startsWith('_') || sEnt.name === 'private') continue;
       const subjectId = sEnt.name;
       const cat = findSubjectInCatalog(subjectId);
       const subjectMeta = readJson(path.join(tDir, subjectId, '_meta.json')) || {};
@@ -631,10 +641,14 @@ export function buildLocalWikiCatalog() {
       const subjectNameEn = subjectMeta.nameEn || cat?.nameEn || subjectName;
       for (const f of listLocalTeacherFiles(teacherId, subjectId)) {
         let status = 'published';
+        let keywords = [teacherName, subjectName].filter(Boolean);
         try {
           const raw = fs.readFileSync(path.join(subjectDir(teacherId, subjectId), f.filename), 'utf8');
-          const statusMatch = raw.match(/^---[\s\S]*?^status:\s*["']?(\w+)/m);
-          status = (statusMatch?.[1] || 'published').toLowerCase();
+          const frontmatter = splitFrontmatter(raw).data;
+          status = String(frontmatter.status || 'published').toLowerCase();
+          if (Array.isArray(frontmatter.keywords) && frontmatter.keywords.length) {
+            keywords = frontmatter.keywords;
+          }
         } catch {
           /* ignore */
         }
@@ -649,8 +663,8 @@ export function buildLocalWikiCatalog() {
           subjectEn: subjectNameEn,
           subjectId,
           noteSlug: f.slug,
-          keywords: [teacherName, subjectName].filter(Boolean),
-          keywordsEn: [teacherName, subjectNameEn].filter(Boolean),
+          keywords,
+          keywordsEn: [teacherName, subjectNameEn, ...keywords.slice(2)].filter(Boolean),
           tags: [],
           date: '',
           updated: '',
@@ -710,7 +724,10 @@ export async function pullTeacherDriveToLocal(teacherId) {
   return { ok: true, pulled, errors: errors.slice(0, 8) };
 }
 
-export async function uploadTeacherFile(user, { subjectId, filename, content, teacherId: reqTeacherId }) {
+export async function uploadTeacherFile(
+  user,
+  { subjectId, filename, content, teacherId: reqTeacherId, keywords = [] },
+) {
   const teacherId = resolveWriteTeacherId(user, reqTeacherId);
   if (!teacherId) throw new Error('無權限上傳筆記');
   if (!subjectId) throw new Error('請選擇科目或處室');
@@ -724,13 +741,24 @@ export async function uploadTeacherFile(user, { subjectId, filename, content, te
   const safeName = safeFilename(filename);
   if (safeName === 'index.md') throw new Error('請勿使用 index.md 作為檔名');
 
+  const noteKeywords = [];
+  const seenKeywords = new Set();
+  for (const value of [displayName, subjectMeta.name || subjectId, ...(Array.isArray(keywords) ? keywords : [])]) {
+    const keyword = String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').slice(0, 40);
+    const key = keyword.toLocaleLowerCase();
+    if (!keyword || seenKeywords.has(key)) continue;
+    noteKeywords.push(keyword);
+    seenKeywords.add(key);
+    if (noteKeywords.length >= 10) break;
+  }
+
   const noteSlug = safeName.replace(/\.md$/i, '');
   const finalContent = ensureFrontmatter(content, {
     teacher: displayName,
     teacherId,
     subject: subjectMeta.name || subjectId,
     subjectId: subjectMeta.id || subjectId,
-    keywords: [subjectMeta.name, displayName].filter(Boolean),
+    keywords: noteKeywords,
     title: extractTitle(content, noteSlug),
   });
 

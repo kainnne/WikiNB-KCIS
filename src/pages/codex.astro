@@ -1,56 +1,66 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import '@fontsource/iansui/chinese-traditional-400.css';
-import '@fontsource/iansui/latin-400.css';
 import '../styles/codex.css';
 
 const base = import.meta.env.BASE_URL;
 ---
 
-<BaseLayout title="Gemini × KCIS" description="WikiNB KCIS · Gemini 複習助理">
+<BaseLayout title="KCIS AI" description="KCIS AI" pageClass="school-ai-page">
   <div class="animate-fadeIn codex-page">
     <div class="mb-4 flex flex-wrap items-end justify-between gap-2 sm:gap-4">
       <div class="min-w-0">
         <h1 class="codex-page-title text-2xl font-bold text-kc-blue-deep sm:text-3xl md:text-4xl">
           <span
             class="bg-gradient-to-r from-kc-blue to-kc-purple bg-clip-text text-transparent"
-            data-i18n="gemini.title">Gemini × KCIS</span
+            data-i18n="gemini.title">KCIS AI</span
           >
         </h1>
       </div>
-      <a href={base} class="kc-btn-ghost shrink-0 text-sm">← 首頁</a>
+
     </div>
 
     <div id="codex-gate" class="kc-card hidden p-8 text-center">
       <p class="text-kc-muted">
-        <span data-i18n="gemini.gate">請先登入後使用 Gemini。</span>
-        <a href={`${base}login`} class="font-semibold text-kc-blue" data-i18n="nav.login">登入</a>
+        <span data-i18n="gemini.gate">Please sign in to use KCIS AI.</span>
+        <a href={`${base}login`} data-school-signin class="font-semibold text-kc-blue" data-i18n="nav.login">Log in</a>
       </p>
     </div>
 
     <div id="codex-offline" class="kc-card hidden border border-amber-200 bg-amber-50/50 p-6 text-center text-amber-900"></div>
 
     <div id="codex-terminal" class="codex-terminal hidden">
-      <div id="codex-output" class="codex-output"></div>
+      <div id="codex-output" class="codex-output">
+        <div class="codex-line codex-line-assistant">
+          <div class="codex-bubble codex-md wiki-content">
+            <p data-i18n="gemini.welcome">I'm KCIS AI. I can help you find, summarize and explain school documents and AI Forum solutions.</p>
+            <p class="text-sm text-kc-muted" data-i18n="gemini.firstReplyNote">Your first AI reply may take about 10–15 seconds.</p>
+          </div>
+        </div>
+      </div>
+      <section class="learning-prompts" aria-label="Suggested prompts">
+        <div class="learning-prompt-heading"><span>Try a prompt</span><button id="learning-prompts-reset" type="button" class="kc-btn-ghost" aria-label="Show two different prompts">↻ Reset</button></div>
+        <div id="learning-prompts-list" class="learning-prompts-list"></div>
+      </section>
       <form id="codex-form" class="codex-input-row">
-        <span class="codex-prompt">›</span>
+
         <input
           id="codex-input"
           type="text"
-          class="codex-input"
+          class="codex-input" aria-label="Ask about your wiki notes…" data-i18n-aria="gemini.placeholder"
           data-i18n-placeholder="gemini.placeholder"
-          placeholder="問你的 wiki 筆記…"
+          placeholder="Ask about your wiki notes…"
           autocomplete="off"
         />
-        <button id="codex-stop" type="button" class="codex-stop" disabled data-i18n="gemini.stop">停止</button>
-        <button id="codex-send" type="submit" class="codex-send" data-i18n="gemini.send">送出</button>
+        <button id="codex-stop" type="button" class="codex-stop kc-btn-ghost" hidden disabled data-i18n="gemini.stop">Stop</button>
+        <button id="codex-send" type="submit" class="codex-send kc-btn-primary" data-i18n="gemini.send">Send</button>
       </form>
     </div>
   </div>
 </BaseLayout>
 
 <script>
-  import { t, getLocale } from '../scripts/i18n.js';
+  import {pickLearningPrompts} from '../lib/learning-prompts.js';
+  import { t, getLocale, uiError } from '../scripts/i18n.js';
   import {
     checkAuthHealth,
     fetchMe,
@@ -69,18 +79,21 @@ const base = import.meta.env.BASE_URL;
   const sendBtn = document.getElementById('codex-send');
   const stopBtn = document.getElementById('codex-stop');
 
+  let selectedPrompts=[];
+  function resetLearningPrompts(){
+    const container=document.getElementById('learning-prompts-list');if(!container)return;
+    const pair=pickLearningPrompts(selectedPrompts);selectedPrompts=pair.map(item=>item.id);container.replaceChildren();
+    for(const prompt of pair){const button=document.createElement('button');button.type='button';button.className='learning-prompt';button.textContent=prompt.label;button.title=prompt.text;button.onclick=()=>{if(running)return;input.value=prompt.text;input.focus();};container.append(button);}
+  }
+  document.getElementById('learning-prompts-reset')?.addEventListener('click',resetLearningPrompts);
+  resetLearningPrompts();
+
   let abortController = null;
   let running = false;
-  let fixedModel = 'gemini-flash-latest';
+  let fixedModel = 'gemini-3.1-flash-lite';
   /** @type {{ role: string, content: string }[]} */
   let chatHistory = [];
 
-  const EXAMPLE_KEYS = [
-    'gemini.example1',
-    'gemini.example2',
-    'gemini.example3',
-    'gemini.example4',
-  ];
 
   function pageBase() {
     return document.documentElement.dataset.base || '/WikiNB-KCIS/';
@@ -112,71 +125,6 @@ const base = import.meta.env.BASE_URL;
     return line;
   }
 
-  function fillExamplePrompt(text) {
-    if (!input || running) return;
-    input.value = text;
-    input.focus();
-    input.setSelectionRange(text.length, text.length);
-  }
-
-  /** @type {HTMLElement | null} */
-  let welcomeRoot = null;
-
-  function refreshWelcomeLocale() {
-    if (!welcomeRoot) return;
-    const title = welcomeRoot.querySelector('.codex-welcome-title');
-    const intro = welcomeRoot.querySelector('.codex-welcome-intro');
-    if (title) title.textContent = t('gemini.connected');
-    if (intro) intro.textContent = t('gemini.examplesIntro');
-    welcomeRoot.querySelectorAll('.codex-example-btn[data-i18n-key]').forEach((btn) => {
-      const key = btn.getAttribute('data-i18n-key');
-      if (!key) return;
-      const prompt = t(key);
-      btn.textContent = prompt;
-      btn.title = prompt;
-    });
-  }
-
-  function appendWelcomeWithExamples() {
-    const line = document.createElement('div');
-    line.className = 'codex-line codex-line-system';
-    line.id = 'codex-welcome-line';
-    const bubble = document.createElement('div');
-    bubble.className = 'codex-bubble codex-welcome';
-
-    const title = document.createElement('p');
-    title.className = 'codex-welcome-title';
-    title.textContent = t('gemini.connected');
-
-    const intro = document.createElement('p');
-    intro.className = 'codex-welcome-intro';
-    intro.textContent = t('gemini.examplesIntro');
-
-    const list = document.createElement('ul');
-    list.className = 'codex-example-list';
-    for (const key of EXAMPLE_KEYS) {
-      const prompt = t(key);
-      const item = document.createElement('li');
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'codex-example-btn';
-      btn.setAttribute('data-i18n-key', key);
-      btn.textContent = prompt;
-      btn.title = prompt;
-      btn.addEventListener('click', () => {
-        fillExamplePrompt(t(key));
-      });
-      item.appendChild(btn);
-      list.appendChild(item);
-    }
-
-    bubble.append(title, intro, list);
-    line.appendChild(bubble);
-    output?.appendChild(line);
-    welcomeRoot = bubble;
-    output?.scrollTo({ top: output.scrollHeight, behavior: 'smooth' });
-  }
-
   function startElapsedTimer() {
     const startedAt = Date.now();
     const line = appendLine('0s', 'system');
@@ -199,17 +147,16 @@ const base = import.meta.env.BASE_URL;
     const s = Math.floor(ms / 1000);
     const m = Math.floor(s / 60);
     const rem = s % 60;
-    if (getLocale() === 'zh-TW') {
-      return m > 0 ? `${m}分${String(rem).padStart(2, '0')}秒` : `${rem} 秒`;
-    }
     return m > 0 ? `${m}m ${String(rem).padStart(2, '0')}s` : `${rem}s`;
   }
 
   function setRunning(isRunning) {
     running = isRunning;
     if (sendBtn) sendBtn.disabled = isRunning;
+    document.querySelectorAll('.learning-prompts button').forEach(button=>button.disabled=isRunning);
     if (stopBtn) {
       stopBtn.disabled = !isRunning;
+      stopBtn.hidden = !isRunning;
       stopBtn.textContent = t('gemini.stop');
     }
     input?.toggleAttribute('disabled', isRunning);
@@ -219,37 +166,45 @@ const base = import.meta.env.BASE_URL;
     try {
       const data = await fetchCodexModels();
       fixedModel = data.defaultModel || data.models?.[0]?.id || fixedModel;
-      if (data.error) appendLine(data.error, 'error');
+      if (data.error) appendLine(uiError({message:data.error},t('gemini.connectFail')), 'error');
     } catch (err) {
-      appendLine(err.message || t('gemini.connectFail'), 'error');
+      appendLine(uiError(err,t('gemini.connectFail')), 'error');
     }
   }
 
   function onLocaleChange() {
-    refreshWelcomeLocale();
     if (stopBtn && !running) stopBtn.textContent = t('gemini.stop');
   }
 
   document.addEventListener('wikinb:locale-change', onLocaleChange);
 
+  let initialized = false;
+  let initializing = false;
   async function init() {
+    if (initialized || initializing) return;
+    initializing = true;
     const me = await fetchMe().catch(() => ({ authenticated: false }));
     if (!me.authenticated) {
+      initializing = false;
       gate?.classList.remove('hidden');
       return;
     }
     const health = await checkAuthHealth();
     if (!health.online) {
+      initializing = false;
       if (offline) {
         offline.textContent =
-          health.message || 'API 未連線。請在終端機執行 npm run auth（埠 8790）。';
+          t('gemini.apiOffline');
         offline.classList.remove('hidden');
       }
       return;
     }
+    initialized = true;
+    initializing = false;
+    gate?.classList.add('hidden');
+    offline?.classList.add('hidden');
     terminal?.classList.remove('hidden');
     await loadModels();
-    appendWelcomeWithExamples();
     onLocaleChange();
     input?.focus();
   }
@@ -301,8 +256,9 @@ const base = import.meta.env.BASE_URL;
         msg,
         (ev) => {
           if (ev.type === 'status' || ev.type === 'event') {
-            progressBubble.textContent = ev.message || ev.summary || t('gemini.working');
+            progressBubble.textContent = uiError({message:ev.message || ev.summary},t('gemini.working'));
           } else if (ev.type === 'delta' && ev.text) {
+            progress.hidden=true;
             liveText += ev.text;
             setBubbleText(liveBubble, liveText, 'assistant');
             output?.scrollTo({ top: output.scrollHeight });
@@ -318,7 +274,7 @@ const base = import.meta.env.BASE_URL;
 
       timer.stop();
       progress.remove();
-      const finalText = result.answer || liveText || '（無回應）';
+      const finalText = result.answer || liveText || t('gemini.noResponse');
       chatHistory.push({ role: 'user', content: msg });
       if (!result.stopped) chatHistory.push({ role: 'assistant', content: finalText });
       if (chatHistory.length > 24) chatHistory = chatHistory.slice(-24);
@@ -330,7 +286,7 @@ const base = import.meta.env.BASE_URL;
       timer.stop();
       progress.remove();
       liveWrap.remove();
-      if (err?.name !== 'AbortError') appendLine(err.message || '執行失敗', 'error');
+      if (err?.name !== 'AbortError') appendLine(uiError(err,t('gemini.runFailed')), 'error');
       else appendLine(t('gemini.stopped'), 'system');
     } finally {
       setRunning(false);
@@ -340,5 +296,8 @@ const base = import.meta.env.BASE_URL;
     }
   });
 
+  document.addEventListener('wikinb:auth-change', (event) => {
+    if (event.detail?.loggedIn) void init();
+  });
   init();
 </script>

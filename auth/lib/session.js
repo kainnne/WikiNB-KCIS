@@ -3,7 +3,8 @@ import { SignJWT, jwtVerify } from 'jose';
 const COOKIE_NAME = 'wikinb_kcis_session';
 
 function secretKey() {
-  const raw = process.env.SESSION_SECRET || 'dev-only-insecure-secret';
+  const raw = process.env.SESSION_SECRET;
+  if (!raw || raw.length < 32) throw new Error('SESSION_SECRET must contain at least 32 characters');
   return new TextEncoder().encode(raw);
 }
 
@@ -11,19 +12,23 @@ export function getSessionCookieName() {
   return COOKIE_NAME;
 }
 
-export async function createSessionToken(user) {
+export async function createSessionToken(user, { expiresIn = '7d' } = {}) {
   return new SignJWT({
-    sub: user.email,
-    email: user.email,
+    sub: user.email || `student:${user.studentAccountId || ''}`,
+    email: user.email || '',
     name: user.name,
     nickname: user.nickname || '',
     role: user.role,
     teacherId: user.teacherId || '',
+    teacherIds: Array.isArray(user.teacherIds) ? user.teacherIds : [],
+    authType: user.authType || 'email-otp',
+    studentAccountId: user.studentAccountId || '',
+    studentNumber: user.studentNumber || '',
     picture: user.picture || '',
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime(expiresIn)
     .sign(secretKey());
 }
 
@@ -37,6 +42,12 @@ export async function verifySessionToken(token) {
       nickname: String(payload.nickname || ''),
       role: String(payload.role || 'student'),
       teacherId: String(payload.teacherId || ''),
+      teacherIds: Array.isArray(payload.teacherIds)
+        ? payload.teacherIds.map((value) => String(value || '')).filter(Boolean)
+        : [],
+      authType: String(payload.authType || 'email-otp'),
+      studentAccountId: String(payload.studentAccountId || ''),
+      studentNumber: String(payload.studentNumber || ''),
       picture: String(payload.picture || ''),
     };
   } catch {
@@ -54,7 +65,7 @@ export function sessionCookieOptions({ maxAgeMs = 7 * 24 * 60 * 60 * 1000 } = {}
     sameSite: crossSite ? 'none' : 'lax',
     secure: crossSite || authHttps,
     path: '/',
-    maxAge: Math.floor(maxAgeMs / 1000),
+    maxAge: maxAgeMs,
   };
 }
 

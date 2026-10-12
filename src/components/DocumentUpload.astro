@@ -1,0 +1,27 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+<section class="document-upload">
+  <header class="upload-heading"><h1>Upload documents</h1><a href={`${base}library/`} class="kc-btn-ghost">School Library</a></header>
+  <div id="upload-gate" class="kc-card" hidden><p>Sign in with a teacher account to upload documents.</p><a href={`${base}login`} data-school-signin class="kc-btn-primary">Sign in</a></div>
+  <form id="document-upload-form" hidden>
+    <button id="upload-dropzone" class="upload-dropzone" type="button">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5" /></svg>
+      <strong>Drop files or choose files</strong>
+      <span>PDF, MD, DOCX, TXT · 12 MB per file</span>
+    </button>
+    <input id="upload-files" type="file" accept=".pdf,.md,.docx,.txt" multiple hidden />
+    <div class="upload-keywords"><label for="upload-keywords">Keywords</label><div id="upload-author" class="tag-badge"></div><div id="upload-role" class="tag-badge">Staff</div><input id="upload-keywords" placeholder="Optional keywords, separated by commas" maxlength="520" /></div>
+    <ul id="upload-queue" aria-label="Selected files"></ul>
+    <div class="upload-actions"><button id="upload-submit" type="submit" class="kc-btn-primary" disabled>Upload</button><button id="upload-clear" type="button" class="kc-btn-ghost" hidden>Clear</button></div>
+  </form>
+  <p id="upload-status" role="status" aria-live="polite"></p>
+</section>
+<script>
+  import '../scripts/document-upload.js';
+</script>
+<style>
+  .document-upload{max-width:760px;margin:12px auto}.upload-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px}.upload-heading h1{font-size:clamp(25px,4vw,34px);font-weight:800;color:var(--kc-blue-deep)}
+  #upload-gate{padding:28px}#upload-gate p{margin-bottom:18px}.upload-dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;width:100%;min-height:230px;border:1px dashed #8f9fc8;border-radius:22px;color:var(--kc-blue-deep);background:rgba(255,255,255,.8);cursor:pointer;transition:background .18s,border-color .18s,box-shadow .18s}.upload-dropzone:hover,.upload-dropzone.is-dragging,.upload-dropzone:active{background:#edeefa;border-color:var(--kc-purple);box-shadow:0 0 0 3px #6b3d9a0c}.upload-dropzone:focus-visible{outline:3px solid var(--kc-purple-soft);outline-offset:4px}.upload-dropzone strong{font-size:18px}.upload-dropzone span{font-size:13px;color:var(--kc-muted)}
+  .upload-keywords{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:26px 0}.upload-keywords label{flex-basis:100%;font-weight:700;font-size:14px}.upload-keywords input{flex:1;min-width:200px;background:#fff;border:1px solid var(--kc-line);border-radius:999px;padding:11px 16px;font-size:14px}.upload-keywords input:focus{outline:2px solid var(--kc-purple-soft);outline-offset:2px}.upload-actions{display:flex;gap:10px;margin-top:24px}#upload-status{margin-top:18px;color:var(--kc-muted);font-size:14px;overflow-wrap:anywhere}#upload-queue{display:grid;gap:8px}#upload-author{padding:7px 12px}.document-upload [hidden]{display:none!important}@media(max-width:640px){.upload-heading{align-items:flex-start;flex-wrap:wrap}.upload-dropzone{min-height:205px;padding:20px}.upload-keywords input{width:100%;min-width:0;flex-basis:100%}}@media(prefers-reduced-motion:reduce){.upload-dropzone{transition:none}}
+</style>
