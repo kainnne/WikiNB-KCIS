@@ -1,7 +1,138 @@
-import {Buffer} from 'node:buffer';
+import { Buffer } from "node:buffer";
 let cachedToken;
-export async function driveToken(env){if(cachedToken?.expires>Date.now()+60000)return cachedToken.value;const sa=JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON||'{}');if(!sa.private_key||!sa.client_email)throw Error('Drive is not configured.');const now=Math.floor(Date.now()/1000),encode=x=>Buffer.from(JSON.stringify(x)).toString('base64url'),unsigned=encode({alg:'RS256',typ:'JWT'})+'.'+encode({iss:sa.client_email,scope:'https://www.googleapis.com/auth/drive',aud:'https://oauth2.googleapis.com/token',iat:now,exp:now+3600}),key=await crypto.subtle.importKey('pkcs8',Buffer.from(sa.private_key.replace(/-----[^-]+-----|\s/g,''),'base64'),{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign']),signature=Buffer.from(await crypto.subtle.sign('RSASSA-PKCS1-v1_5',key,new TextEncoder().encode(unsigned))).toString('base64url');const r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',body:new URLSearchParams({grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer',assertion:unsigned+'.'+signature})});const d=await r.json();if(!r.ok||!d.access_token)throw Error('Drive authentication failed.');cachedToken={value:d.access_token,expires:Date.now()+d.expires_in*1000};return d.access_token;}
-export async function drive(env,path,options={}){const r=await fetch('https://www.googleapis.com/drive/v3/'+path,{...options,headers:{Authorization:'Bearer '+await driveToken(env),...options.headers}});if(!r.ok)throw Error('Drive request failed ('+r.status+').');return r;}
-export async function folder(env,parent,name){const q="'"+parent+"' in parents and name='"+name.replace(/'/g,"\\'")+"' and mimeType='application/vnd.google-apps.folder' and trashed=false";const data=await (await drive(env,'files?'+new URLSearchParams({q,fields:'files(id,name)',supportsAllDrives:'true',includeItemsFromAllDrives:'true'}))).json();if(data.files?.[0])return data.files[0].id;return (await (await drive(env,'files?supportsAllDrives=true&fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,mimeType:'application/vnd.google-apps.folder',parents:[parent]})})).json()).id;}
-export async function writeDrive(env,{parent,name,bytes,mime='text/markdown',id,properties={}}){const boundary='kcis_'+crypto.randomUUID(),metadata={name,mimeType:mime,appProperties:properties,...(!id?{parents:[parent]}:{})};const body=new Blob(['--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(metadata)+'\r\n--'+boundary+'\r\nContent-Type: '+mime+'\r\n\r\n',bytes,'\r\n--'+boundary+'--']);const r=await fetch('https://www.googleapis.com/upload/drive/v3/files'+(id?'/'+id:'')+'?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink',{method:id?'PATCH':'POST',headers:{Authorization:'Bearer '+await driveToken(env),'Content-Type':'multipart/related; boundary='+boundary},body});if(!r.ok)throw Error('Could not save document to Drive.');return r.json();}
-export async function documentFolder(env,role,category){const root=await folder(env,env.GOOGLE_DRIVE_FOLDER_ID,'KCIS AI');const roleFolder=await folder(env,root,role);return folder(env,roleFolder,category);}
+export async function driveToken(env) {
+  if (cachedToken?.expires > Date.now() + 60000) return cachedToken.value;
+  const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON || "{}");
+  if (!sa.private_key || !sa.client_email)
+    throw Error("Drive is not configured.");
+  const now = Math.floor(Date.now() / 1000),
+    encode = (x) => Buffer.from(JSON.stringify(x)).toString("base64url"),
+    unsigned =
+      encode({ alg: "RS256", typ: "JWT" }) +
+      "." +
+      encode({
+        iss: sa.client_email,
+        scope: "https://www.googleapis.com/auth/drive",
+        aud: "https://oauth2.googleapis.com/token",
+        iat: now,
+        exp: now + 3600,
+      }),
+    key = await crypto.subtle.importKey(
+      "pkcs8",
+      Buffer.from(sa.private_key.replace(/-----[^-]+-----|\s/g, ""), "base64"),
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["sign"],
+    ),
+    signature = Buffer.from(
+      await crypto.subtle.sign(
+        "RSASSA-PKCS1-v1_5",
+        key,
+        new TextEncoder().encode(unsigned),
+      ),
+    ).toString("base64url");
+  const r = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: unsigned + "." + signature,
+    }),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.access_token) throw Error("Drive authentication failed.");
+  cachedToken = {
+    value: d.access_token,
+    expires: Date.now() + d.expires_in * 1000,
+  };
+  return d.access_token;
+}
+export async function drive(env, path, options = {}) {
+  const r = await fetch("https://www.googleapis.com/drive/v3/" + path, {
+    ...options,
+    headers: {
+      Authorization: "Bearer " + (await driveToken(env)),
+      ...options.headers,
+    },
+  });
+  if (!r.ok) throw Error("Drive request failed (" + r.status + ").");
+  return r;
+}
+export async function folder(env, parent, name) {
+  const q =
+    "'" +
+    parent +
+    "' in parents and name='" +
+    name.replace(/'/g, "\\'") +
+    "' and mimeType='application/vnd.google-apps.folder' and trashed=false";
+  const data = await (
+    await drive(
+      env,
+      "files?" +
+        new URLSearchParams({
+          q,
+          fields: "files(id,name)",
+          supportsAllDrives: "true",
+          includeItemsFromAllDrives: "true",
+        }),
+    )
+  ).json();
+  if (data.files?.[0]) return data.files[0].id;
+  return (
+    await (
+      await drive(env, "files?supportsAllDrives=true&fields=id", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          mimeType: "application/vnd.google-apps.folder",
+          parents: [parent],
+        }),
+      })
+    ).json()
+  ).id;
+}
+export async function writeDrive(
+  env,
+  { parent, name, bytes, mime = "text/markdown", id, properties = {} },
+) {
+  const boundary = "kcis_" + crypto.randomUUID(),
+    metadata = {
+      name,
+      mimeType: mime,
+      appProperties: properties,
+      ...(!id ? { parents: [parent] } : {}),
+    };
+  const body = new Blob([
+    "--" +
+      boundary +
+      "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" +
+      JSON.stringify(metadata) +
+      "\r\n--" +
+      boundary +
+      "\r\nContent-Type: " +
+      mime +
+      "\r\n\r\n",
+    bytes,
+    "\r\n--" + boundary + "--",
+  ]);
+  const r = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files" +
+      (id ? "/" + id : "") +
+      "?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink",
+    {
+      method: id ? "PATCH" : "POST",
+      headers: {
+        Authorization: "Bearer " + (await driveToken(env)),
+        "Content-Type": "multipart/related; boundary=" + boundary,
+      },
+      body,
+    },
+  );
+  if (!r.ok) throw Error("Could not save document to Drive.");
+  return r.json();
+}
+export async function documentFolder(env, role, category) {
+  const root = await folder(env, env.GOOGLE_DRIVE_FOLDER_ID, "KCIS AI");
+  const roleFolder = await folder(env, root, role);
+  return folder(env, roleFolder, category);
+}

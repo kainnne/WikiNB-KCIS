@@ -1,1 +1,9 @@
-{"name":"kcis-school-cloud-api","private":true,"type":"module","scripts":{"test":"node --test test/*.test.mjs"},"dependencies":{}}
+{
+  "name": "kcis-school-cloud-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {}
+}
