@@ -72,6 +72,7 @@ const base = import.meta.env.BASE_URL;
 <script>
   import {pickLearningPrompts,localizeLearningPrompt,learningPromptIcon} from '../lib/learning-prompts.js';
   import {chatMessage,completedChatHistory} from '../lib/chat-recovery.js';
+  import {createChatInitialization} from '../lib/chat-initialization.js';
   import { uiError } from '../scripts/i18n.js';
   import en from '../locales/en.json';
   import zh from '../locales/zh-TW.json';
@@ -214,45 +215,49 @@ const base = import.meta.env.BASE_URL;
     input?.toggleAttribute('disabled', isRunning);
   }
 
-  async function loadModels() {
+  async function loadModels(isCurrent=()=>true) {
     try {
       const data = await fetchCodexModels();
+      if(!isCurrent())return;
       fixedModel = data.defaultModel || data.models?.[0]?.id || fixedModel;
       if (data.error) appendLine(uiError({message:data.error},t('gemini.connectFail')), 'error');
     } catch (err) {
+      if(!isCurrent())return;
       appendLine(uiError(err,t('gemini.connectFail')), 'error');
     }
   }
 
-  let initialized = false;
-  let initializing = false;
-  async function init() {
-    if (!responseLanguage || initialized || initializing) return;
-    initializing = true;
-    const me = await fetchMe().catch(() => ({ authenticated: false }));
+  function showOffline(){
+    gate?.classList.add('hidden');terminal?.classList.add('hidden');
+    if(!offline)return;
+    offline.replaceChildren(document.createTextNode(t('gemini.apiOffline')));
+    const retry=document.createElement('button');retry.type='button';retry.className='learning-prompt codex-retry';retry.textContent=chatMessage('retry',responseLanguage);retry.onclick=()=>void init(true);offline.append(retry);offline.classList.remove('hidden');
+  }
+  const initialization=createChatInitialization(async({isCurrent})=>{
+    const me = await fetchMe({timeoutMs:10000}).catch(() => ({ authenticated: false,offline:true }));
+    if(!isCurrent())return false;
     if (!me.authenticated) {
-      initializing = false;
-      gate?.classList.remove('hidden');
-      return;
+      if(me.offline)showOffline();
+      else{offline?.classList.add('hidden');terminal?.classList.add('hidden');gate?.classList.remove('hidden');}
+      return false;
     }
     const health = await checkAuthHealth();
+    if(!isCurrent())return false;
     if (!health.online) {
-      initializing = false;
-      if (offline) {
-        offline.textContent =
-          t('gemini.apiOffline');
-        offline.classList.remove('hidden');
-      }
-      return;
+      showOffline();return false;
     }
-    initialized = true;
-    initializing = false;
     gate?.classList.add('hidden');
     offline?.classList.add('hidden');
     terminal?.classList.remove('hidden');
-    await loadModels();
+    await loadModels(isCurrent);
+    if(!isCurrent())return false;
     onLocaleChange();
     input?.focus();
+    return true;
+  });
+  async function init(recheck=false) {
+    if(!responseLanguage)return;
+    return initialization.request(recheck);
   }
 
   stopBtn?.addEventListener('click', async (e) => {
@@ -354,7 +359,7 @@ const base = import.meta.env.BASE_URL;
   });
 
   document.addEventListener('wikinb:auth-change', (event) => {
-    if (event.detail?.loggedIn) void init();else{abortController?.abort();initialized=false;chatHistory=[];failedAttempt=null;setExpanded(false);terminal?.classList.add('hidden');gate?.classList.remove('hidden');for(const line of [...output.children])if(line.id!=='codex-intro'&&line!==promptPanel)line.remove();output.append(promptPanel);promptPanel.hidden=false;}
+    if (event.detail?.loggedIn) void init(true);else{initialization.invalidate();abortController?.abort();chatHistory=[];failedAttempt=null;setExpanded(false);offline?.classList.add('hidden');terminal?.classList.add('hidden');gate?.classList.remove('hidden');for(const line of [...output.children])if(line.id!=='codex-intro'&&line!==promptPanel)line.remove();output.append(promptPanel);promptPanel.hidden=false;}
   });
   askLanguage();
 </script>

@@ -793,6 +793,10 @@ export async function mountNavAuth() {
     } catch {
       me = { authenticated: false };
     }
+    if(me.offline){
+      if(loginLink){loginLink.textContent=t('nav.login');loginLink.disabled=false;}
+      return; // A temporary connection failure is not a sign-out event.
+    }
     const loggedIn = Boolean(me.authenticated && me.user);
     const teacher = loggedIn && isTeacherUser(me.user);
     const student = loggedIn && !teacher;

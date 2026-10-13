@@ -1,3 +1,4 @@
+import {setTimeout as pause} from 'node:timers/promises';
 import { publicDocument } from "./security.mjs";
 const declarations = [
   {
@@ -202,6 +203,7 @@ export async function chatAnswer(env, input) {
       );
       if (response.status !== 503 || attempt === 1) break;
       await response.body?.cancel();
+      await pause(1000,undefined,{signal:deadline});
     }
     if (!response.ok) {
       const failure = await response.json().catch(() => null);
@@ -219,7 +221,7 @@ export async function chatAnswer(env, input) {
     const data = await response.json(),
       content = data.candidates?.[0]?.content;
     if (!content?.parts) throw Error("AI returned no answer.");
-    const calls = content.parts.filter((part) => part.functionCall).slice(0, 4);
+    const calls = content.parts.filter((part) => part.functionCall);
     if (!calls.length) {
       const answer = content.parts
         .map((part) => part.text || "")
@@ -238,9 +240,10 @@ export async function chatAnswer(env, input) {
     contents.push(content);
     contents.push({
       role: "user",
-      parts: calls.map(({ functionCall: call }) => {
+      parts: calls.map(({ functionCall: call },index) => {
         let result;
-        if (call.name === "search_library")
+        if(index>=4)result={error:"Tool budget reached. Use the previous results."};
+        else if (call.name === "search_library")
           result = search(String(call.args?.query || "").slice(0, 200));
         else if (call.name === "read_document" && allowed.has(call.args?.id)) {
           const row = rows.find((row) => row.id === call.args.id),
@@ -258,7 +261,7 @@ export async function chatAnswer(env, input) {
               }
             : { error: "Document not found." };
         } else result = { error: "Search first; unknown document or tool." };
-        return { functionResponse: { name: call.name, response: { result } } };
+        return { functionResponse: { ...(call.id?{id:call.id}:{}), name: call.name, response: { result } } };
       }),
     });
   }
