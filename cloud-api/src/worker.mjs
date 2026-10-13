@@ -565,7 +565,7 @@ export default {
                   type: "error",
                   error: error.message || "AI service is unavailable.",
                   code: error.code || "AI_UNAVAILABLE",
-                  retryable: true,
+                  retryable: error.retryable ?? true,
                 }),
               )
               .finally(() => controller.close());

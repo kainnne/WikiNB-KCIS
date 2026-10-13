@@ -203,15 +203,19 @@ export async function chatAnswer(env, input) {
       if (response.status !== 503 || attempt === 1) break;
       await response.body?.cancel();
     }
-    if (!response.ok)
+    if (!response.ok) {
+      const failure = await response.json().catch(() => null);
+      const quota = response.status === 429 || failure?.error?.status === "RESOURCE_EXHAUSTED";
+      const rejected = response.status === 401 || response.status === 403;
       throw Object.assign(
-        Error(
-          response.status === 429
-            ? "AI quota reached. Please try again later."
-            : "AI service is busy. Please try again.",
-        ),
-        { status: 503, code: "AI_BUSY", retryable: true },
+        Error(quota
+          ? "Gemini usage or request limits may have been reached. Please try again later."
+          : rejected
+            ? "Gemini rejected the request. Please ask the administrator to check the API key, permissions, and usage limits."
+            : "Gemini is temporarily busy. Please try again later."),
+        { status: quota ? 429 : 503, code: quota ? "AI_QUOTA" : rejected ? "AI_CONFIG" : "AI_BUSY", retryable: quota || !rejected },
       );
+    }
     const data = await response.json(),
       content = data.candidates?.[0]?.content;
     if (!content?.parts) throw Error("AI returned no answer.");
