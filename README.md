@@ -2,18 +2,20 @@
 
 校內登入後共享的文件庫與資料問答。正式入口：https://wikinb.kcis.kainnne.com/ 。個人 `wikinb.kainnne.com` 是獨立專案。
 
-## 開發中的新流程（2026-10-08）
+## 現行雲端流程（2026-10-13）
+
+免費 Worker / D1 後台與學校 Drive 已部署，接手設定見 [cloud-api/README.md](cloud-api/README.md)。舊 Mac 主機文件僅供舊版參考。
 
 - 登入集中在 AI Tools 右上角：只輸入信箱與 OTP，暱稱預設為信箱 @ 前字串；使用 HttpOnly session。除兩個指定測試帳號外，不接受一般 Gmail。前端僅保存介面狀態，權限由 API 判斷。
 - 信箱 local-part 開頭為 s/j 加恰好五位數字時預設學生，其餘為老師；名單可覆寫。唯一管理員為 `kainnne@kcis.com.tw`。
 - 上傳分為 `teachers`、`students`，各四類：`academic`、`extracurricular`、`ai-resolved`、`ai-articles`。依檔名／可抽取文字規則分類，不用 LLM。
-- 教師上傳限 PDF、MD、DOCX、TXT，單檔 12 MB；學生可閱讀但不能上傳。WikiNB 介面可在選單切換中文／英文（論壇仍為英文），只提供檔案拖曳／選取，不提供線上編輯。後台自動保存原檔與轉換後 Markdown；PDF 另保存版面圖像及解析資訊。Keywords 固定包含當下暱稱與「教職員／學生」，另可新增最多 12 個 keywords（各 40 字），不能由檔案 metadata 冒用作者。圖片與無文字 PDF不代表已 OCR。AI 使用有界的搜尋／閱讀工具，不執行文件指令或本機 shell。舊 Wiki／檔案／學生 API 保留相容；本機 Codex 呼叫不開放，Git 同步須由指定管理員明確啟用。
+- 教師只上傳 UTF-8 MD，每檔最多 1 MB；學生只能閱讀。上傳入口為「上傳 MD／如何上傳 MD」兩張字卡，說明下方提供 Kuse 與 Kuse × 康軒連結。目前不開放 PDF／DOCX 轉檔，亦不接受 TXT。Keywords 使用當下姓名與部門，另可補充最多 12 個關鍵字。
 - 所有新資料都經 `/api/library` 校內 session 檢查後共享，不以公開靜態檔提供。舊課堂資料保留原權限，不自動改為全校公開。
 - 論壇解決紀錄由具秘密金鑰的服務匯入，版本保留；Worker 每五分鐘送出待同步佇列，失敗保留並重試；同題更新沿用文件 ID、舊版留在 versions，重複送達不新增文件。管理員隱藏／還原會同步，普通帳號不能刪除。
 
 ## 交付與儲存邊界
 
-Astro 前端可部署於 Cloudflare Pages 或 GitHub Pages；現有 Express、PDF/DOCX 解析需要持續運行的 Node 主機，不能直接視為純 Pages／免費 Worker 專案。可使用主任指定的主機與 KCIS DNS，設定穩定 HTTPS API、前端來源 CORS 與部署 URL 即可。
+Astro 前端維持 GitHub Pages；正式登入、寄信、資料庫與 AI 由 cloud-api/ 的 Cloudflare Worker 提供，文件在學校 Drive，已不依賴本機 Node 或 Quick Tunnel。舊 Express 轉檔程式保留作本機開發參考，不是目前正式後台。
 
 `LIBRARY_DATA_DIR` 可指定文件儲存位置，預設 `data/library/`；manifest 不含依賴原電腦的絕對文件路徑，搬移後讀取已測試。帳號／名單在 `auth/data/`，也須作為持久資料備份。單一 Node 程序負責文件寫入；多副本部署前需改資料庫／物件儲存協調。
 
@@ -40,7 +42,7 @@ PUBLIC_BASE_PATH=/ npm run build
 
 AI Tools 使用 `/api/auth/send-code` → `/login-with-code`，首次與既有帳號均不要求輸入名稱。預設暱稱為信箱 @ 前字串；若與既有暱稱衝突則自動加序號。修改時可使用 2–20 字的中文、英文字母、數字、底線或句點，所有帳號不可撞名。WikiNB 登入後從右上角選單開啟帳號即可修改；登出先確認，成功後顯示狀態。WikiNB 的登入／帳號連結會返回原頁；本機入口連本機 WikiNB，不跳到正式站。
 
-**正式站未完成的部分**：主任需提供持續運作的 Node 主機、固定 HTTPS API 網址與 DNS 授權。AI Tools `NEXT_PUBLIC_AUTH_API_URL`、WikiNB `PUBLIC_AUTH_PRODUCTION_URL` 或 `config/sites.json.auth.productionUrl`、後台 `AUTH_BASE_URL` 必須指向同一套服務。兩個前端改 URL 後都需重新建置；只更新 API key 不會接好線上登入。盡量讓 API 與兩個前端使用相同主網域，避免瀏覽器封鎖第三方 Cookie。CORS 用精確來源，不能代替校內信箱驗證。
+正式連線設定及交接請以 cloud-api/README.md 為準。以下 Node 主機／閘道步驟是舊試用架構，不再作正式部署指示。
 
 對外可使用可選 `auth/public-gateway.js`；只轉送新版驗證碼登入、暱稱、登出、校內 library 與有 secret 保護的論壇匯入端點。舊 Wiki、Codex、Git、密碼／學生代碼等 API 不透過此閘道公開，原本本機 API 保留。設定 `SCHOOL_PRIVATE_API=http://127.0.0.1:8790`、`SCHOOL_PUBLIC_API_ORIGIN=https://核准的API網址`、`FRONTEND_ORIGINS=兩個正式前端origin`，執行 `node auth/public-gateway.js`（僅 listen 127.0.0.1:8791），再由有授權的 HTTPS 反向代理接入。主機重啟後需由服務管理器啟動兩個程序；關閉本機預覽不等於服務可持續上線。不要公開整個 8790，也不要把會變動的 Quick Tunnel 當成穩定交付。
 

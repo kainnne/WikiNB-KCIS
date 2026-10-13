@@ -2,20 +2,44 @@
 const base = import.meta.env.BASE_URL;
 ---
 <section class="document-upload">
-  <header class="upload-heading"><h1 data-i18n="upload.title">Upload documents</h1><a href={`${base}search`} class="kc-btn-ghost">WikiNB</a></header>
+  <header class="upload-heading"><h1 data-i18n="upload.title">Upload documents</h1></header>
+  <div class="upload-choices">
+    <button id="upload-open" type="button" class="upload-choice" aria-expanded="false" aria-controls="upload-panel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/></svg>
+      <span data-i18n="upload.card">Upload MD</span>
+    </button>
+    <button id="upload-help-open" type="button" class="upload-choice" aria-expanded="false" aria-controls="upload-help-panel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M14 2H6v20h12V6l-4-4Z"/><path d="M14 2v5h4M9 12h6M9 16h6"/></svg>
+      <span data-i18n="upload.how">How to upload MD</span>
+    </button>
+  </div>
+  <div id="upload-panel" class="upload-panel" hidden>
   <div id="upload-gate" class="kc-card" hidden><p data-i18n="upload.gate">Sign in with a teacher account to upload documents.</p><a href={`${base}login`} data-school-signin class="kc-btn-primary" data-i18n="nav.login">Sign in</a></div>
   <form id="document-upload-form" hidden>
     <button id="upload-dropzone" class="upload-dropzone" type="button">
       <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5" /></svg>
       <strong data-i18n="upload.drop">Drop files or choose files</strong>
-      <span data-i18n="upload.formats">PDF, MD, DOCX, TXT · 12 MB per file</span>
+      <span data-i18n="upload.formats">MD · 1 MB per file</span>
     </button>
-    <input id="upload-files" type="file" accept=".pdf,.md,.docx,.txt" multiple hidden />
+    <p class="mt-3 text-sm text-kc-muted" data-i18n="upload.conversionUnavailable">PDF/DOCX conversion is currently unavailable.</p>
+    <input id="upload-files" type="file" accept=".md" multiple hidden />
     <div class="upload-keywords"><label for="upload-keywords" data-i18n="upload.keywords">Keywords</label><div id="upload-author" class="tag-badge"></div><div id="upload-role" class="tag-badge" data-i18n="account.staff">Staff</div><input id="upload-keywords" data-i18n-placeholder="upload.optional" placeholder="Optional keywords, separated by commas" maxlength="520" /></div>
     <ul id="upload-queue" data-i18n-aria="upload.selected" aria-label="Selected files"></ul>
     <div class="upload-actions"><button id="upload-submit" type="submit" class="kc-btn-primary" disabled data-i18n="upload.submit">Upload</button><button id="upload-clear" type="button" class="kc-btn-ghost" hidden data-i18n="upload.clear">Clear</button></div>
   </form>
   <p id="upload-status" role="status" aria-live="polite"></p>
+  </div>
+  <aside id="upload-help-panel" class="upload-panel upload-help" hidden>
+    <ol>
+      <li data-i18n="upload.step1">Use Kuse to organize your material as Markdown, then check the content.</li>
+      <li data-i18n="upload.step2">Save it as a UTF-8 .md file. Renaming a PDF or Word file is not a conversion.</li>
+      <li data-i18n="upload.step3">Sign in, drop the .md file here, add optional keywords, and upload.</li>
+    </ol>
+    <div class="upload-links">
+      <a href="https://app.kuse.ai/" target="_blank" rel="noopener noreferrer" data-i18n="upload.kuse">Go to Kuse</a>
+      <a href="https://kuse.knsh.com.tw/" target="_blank" rel="noopener noreferrer" data-i18n="upload.partner">Kuse × 康軒</a>
+    </div>
+  </aside>
 </section>
 <script>
   import '../scripts/document-upload.js';
@@ -23,5 +47,6 @@ const base = import.meta.env.BASE_URL;
 <style>
   .document-upload{max-width:760px;margin:12px auto}.upload-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px}.upload-heading h1{font-size:clamp(25px,4vw,34px);font-weight:800;color:var(--kc-blue-deep)}
   #upload-gate{padding:28px}#upload-gate p{margin-bottom:18px}.upload-dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;width:100%;min-height:230px;border:1px dashed #8f9fc8;border-radius:22px;color:var(--kc-blue-deep);background:rgba(255,255,255,.8);cursor:pointer;transition:background .18s,border-color .18s,box-shadow .18s}.upload-dropzone:hover,.upload-dropzone.is-dragging,.upload-dropzone:active{background:#edeefa;border-color:var(--kc-purple);box-shadow:0 0 0 3px #6b3d9a0c}.upload-dropzone:focus-visible{outline:3px solid var(--kc-purple-soft);outline-offset:4px}.upload-dropzone strong{font-size:18px}.upload-dropzone span{font-size:13px;color:var(--kc-muted)}
-  .upload-keywords{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:26px 0}.upload-keywords label{flex-basis:100%;font-weight:700;font-size:14px}.upload-keywords input{flex:1;min-width:200px;background:#fff;border:1px solid var(--kc-line);border-radius:999px;padding:11px 16px;font-size:14px}.upload-keywords input:focus{outline:2px solid var(--kc-purple-soft);outline-offset:2px}.upload-actions{display:flex;gap:10px;margin-top:24px}#upload-status{margin-top:18px;color:var(--kc-muted);font-size:14px;overflow-wrap:anywhere}#upload-queue{display:grid;gap:8px}#upload-author{padding:7px 12px}.document-upload [hidden]{display:none!important}@media(max-width:640px){.upload-heading{align-items:flex-start;flex-wrap:wrap}.upload-dropzone{min-height:205px;padding:20px}.upload-keywords input{width:100%;min-width:0;flex-basis:100%}}@media(prefers-reduced-motion:reduce){.upload-dropzone{transition:none}}
+  .upload-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.upload-choice{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:32px;min-height:172px;padding:26px;text-align:left;border:1px solid var(--kc-line);border-radius:22px;background:#fff;color:var(--kc-blue-deep);box-shadow:0 8px 24px #243b7310;cursor:pointer;transition:transform .18s,box-shadow .18s,border-color .18s}.upload-choice::after{content:'';position:absolute;left:26px;right:26px;bottom:0;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--kc-blue),var(--kc-purple));transform:scaleX(.22);transform-origin:left;transition:transform .18s}.upload-choice svg{width:30px;height:30px}.upload-choice span{font-size:20px;font-weight:700}.upload-choice:hover{transform:translateY(-3px);box-shadow:0 14px 30px #243b7318;border-color:#929fc8}.upload-choice:hover::after,.upload-choice[aria-expanded="true"]::after{transform:scaleX(1)}.upload-choice[aria-expanded="true"]{border-color:var(--kc-purple);background:#faf9fd}.upload-choice:active{transform:translateY(0) scale(.99)}.upload-choice:focus-visible{outline:3px solid var(--kc-purple-soft);outline-offset:4px}.upload-panel{margin-top:24px}.upload-help{padding:24px;border:1px solid var(--kc-line);border-radius:20px;background:#fff}.upload-help ol{padding-left:22px;margin:0;color:var(--kc-muted);font-size:15px;line-height:1.8}.upload-help li+li{margin-top:10px}.upload-links{display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:22px;border-top:1px solid var(--kc-line);padding-top:18px}.upload-links a{color:var(--kc-blue-deep);font-size:14px;text-underline-offset:4px;text-decoration:underline}.upload-links a:hover{color:var(--kc-purple)}.upload-links a:focus-visible{outline:2px solid var(--kc-purple);outline-offset:4px}
+  .upload-keywords{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:26px 0}.upload-keywords label{flex-basis:100%;font-weight:700;font-size:14px}.upload-keywords input{flex:1;min-width:200px;background:#fff;border:1px solid var(--kc-line);border-radius:999px;padding:11px 16px;font-size:14px}.upload-keywords input:focus{outline:2px solid var(--kc-purple-soft);outline-offset:2px}.upload-actions{display:flex;gap:10px;margin-top:24px}#upload-status{margin-top:18px;color:var(--kc-muted);font-size:14px;overflow-wrap:anywhere}#upload-queue{display:grid;gap:8px}#upload-author{padding:7px 12px}.document-upload [hidden]{display:none!important}@media(max-width:640px){.upload-choices{gap:12px}.upload-choice{min-height:152px;padding:20px;gap:24px}.upload-choice span{font-size:17px}.upload-choice::after{left:20px;right:20px}.upload-heading{align-items:flex-start;flex-wrap:wrap}.upload-dropzone{min-height:205px;padding:20px}.upload-keywords input{width:100%;min-width:0;flex-basis:100%}}@media(max-width:360px){.upload-choices{grid-template-columns:1fr}.upload-choice{min-height:120px}}@media(prefers-reduced-motion:reduce){.upload-dropzone,.upload-choice,.upload-choice::after{transition:none}.upload-choice:hover,.upload-choice:active{transform:none}}
 </style>

@@ -53,3 +53,6 @@ wiki/teachers/*/private/**
 
 # Public deployment template contains placeholders only.
 !/auth/.env.school.example
+
+# Wrangler local cache contains private runtime state.
+.wrangler/

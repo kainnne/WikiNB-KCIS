@@ -1,0 +1,7 @@
+{
+ "name":"kcis-school-api","main":"src/worker.mjs","compatibility_date":"2026-10-13","compatibility_flags":["nodejs_compat"],"workers_dev":true,
+ "observability":{"enabled":false},
+ "vars":{"FRONTEND_ORIGINS":"https://ai-tools.kcis.kainnne.com,https://wikinb.kcis.kainnne.com","ALLOWED_EMAIL_DOMAINS":"kcis.com.tw,kcis.ntpc.edu.tw","EXTRA_ALLOWED_EMAILS":"chaos60649@gmail.com,st101031616@gmail.com","LLM_MODEL":"gemini-3.1-flash-lite","SMTP_HOST":"smtp.gmail.com","SMTP_PORT":"465","SMTP_FROM":"KCIS AI <ryanzhu@kainnne.com>","FORUM_API_URL":"https://kcis-ai-forum-api.chaos60649.workers.dev"},
+ "d1_databases":[{"binding":"DB","database_name":"kcis-school-cloud","database_id":"f7641ffe-2592-46a1-95bf-62c3f98e62ed","migrations_dir":"migrations"}],
+ "triggers":{"crons":["*/5 * * * *"]}
+}

@@ -7,7 +7,7 @@
   },
   "auth": {
     "url": "http://127.0.0.1:8790",
-    "productionUrl": "",
+    "productionUrl": "https://kcis-school-api.chaos60649.workers.dev",
     "mode": "email-otp",
     "note": "本機測試登入：http://127.0.0.1:4322/WikiNB-KCIS/login（埠：網站 4322、Auth 8790）。個人 WikiNB 是另一專案（4321／8787）勿混用。診斷：./host/doctor-mac.sh；一鍵本機：./host/local-login-mac.sh；線上 github.io 需 Tunnel + productionUrl push。"
   },

@@ -2,8 +2,13 @@ import {fetchMe, isTeacherUser, getAuthUrl} from './auth-client.js';
 import {t,uiError} from './i18n.js';
 const el=id=>document.getElementById(id);
 const form=el('document-upload-form'), drop=el('upload-dropzone'), picker=el('upload-files');
-const extensions=new Set(['pdf','md','docx','txt']);
+const extensions=new Set(['md']);
 let files=[], teacher=null, busy=false;
+const choices=[['upload-open','upload-panel'],['upload-help-open','upload-help-panel']];
+for(const [buttonId,panelId] of choices)el(buttonId).addEventListener('click',()=>{
+  const open=el(panelId).hidden;
+  for(const [otherButton,otherPanel] of choices){el(otherPanel).hidden=otherPanel!==panelId||!open;el(otherButton).setAttribute('aria-expanded',String(otherPanel===panelId&&open));}
+});
 function status(message=''){el('upload-status').textContent=message;}
 function draw(){
   el('upload-queue').replaceChildren();
@@ -23,7 +28,7 @@ function addFiles(incoming){
   const rejected=[];
   for(const file of incoming){
     if(!extensions.has(file.name.split('.').pop().toLowerCase())){rejected.push(t('upload.invalidFormat',{name:file.name}));continue;}
-    if(!file.size||file.size>12*1024*1024){rejected.push(t('upload.invalidSize',{name:file.name}));continue;}
+    if(!file.size||file.size>1024*1024){rejected.push(t('upload.invalidSize',{name:file.name}));continue;}
     if(!files.some(item=>item.file.name===file.name&&item.file.size===file.size&&item.file.lastModified===file.lastModified))files.push({file,state:'upload.ready'});
   }
   status(rejected.join(' · '));draw();picker.value='';
