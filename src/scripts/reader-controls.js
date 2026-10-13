@@ -46,6 +46,19 @@ export function createReaderControls(reader, toggle, { beforeExpand } = {}) {
     document.body.append(modal);
     modal.addEventListener('cancel', event => { event.preventDefault(); restore(); });
     modal.addEventListener('close', restore);
+    let pressedBackdrop = false;
+    const outsideReader = event => {
+      const rect = modal.getBoundingClientRect();
+      return event.target === modal && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom);
+    };
+    modal.addEventListener('pointerdown', event => {
+      pressedBackdrop = event.button === 0 && outsideReader(event);
+    });
+    modal.addEventListener('pointercancel', () => { pressedBackdrop = false; });
+    modal.addEventListener('click', event => {
+      if (pressedBackdrop && outsideReader(event)) restore();
+      pressedBackdrop = false;
+    });
     document.documentElement.classList.add('wiki-fs-active');
     updateLabel();
     modal.showModal();
