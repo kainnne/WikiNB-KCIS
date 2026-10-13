@@ -46,28 +46,14 @@ export function createWikiSearch(initialIndex, options = {}) {
     </article>`;
   };
 
-  // The two upload groups and their four existing categories reflect the Drive layout.
+  // Browse by uploader group only; document source metadata remains available to AI.
   const renderTree = (pages, searching) => {
-    const groups = new Map();
-    for (const page of pages) {
-      const role = page.role || 'teachers', category = page.category || page.subjectId || 'academic';
-      if (!groups.has(role)) groups.set(role, new Map());
-      if (!groups.get(role).has(category)) groups.get(role).set(category, []);
-      groups.get(role).get(category).push(page);
-    }
-    const folder = (path, label, count, contents) => {
-      const open = searching || expandedDirs.has(path), id = domId(path);
-      return `<div class="wiki-node" data-dir="${escapeHtml(path)}"><button type="button" class="folder-row" data-dir-toggle="${escapeHtml(path)}" aria-expanded="${open}" aria-controls="${id}"><span class="folder-chevron${open ? ' is-open' : ''}" aria-hidden="true">▸</span><span class="folder-name">${escapeHtml(label)}</span><span class="folder-count">${escapeHtml(t('search.folderCount', {n: count}))}</span></button><div id="${id}" class="folder-children" ${open ? '' : 'hidden'}>${contents}</div></div>`;
-    };
-    return ['teachers', 'students', ...[...groups.keys()].filter(role => !['teachers', 'students'].includes(role))].filter(role => groups.has(role)).map(role => {
-      const categories = groups.get(role), total = [...categories.values()].reduce((n, items) => n + items.length, 0);
-      const ordered = ['academic', 'extracurricular', 'ai-resolved', 'ai-articles', ...[...categories.keys()].filter(category => !['academic', 'extracurricular', 'ai-resolved', 'ai-articles'].includes(category))];
-      const children = ordered.filter(category => categories.has(category)).map(category => {
-        const items = categories.get(category), first = items[0];
-        const label = getLocale() === 'zh-TW' ? first.categoryZh || first.subject : first.subjectEn || first.subject;
-        return folder(role + '/' + category, label || category, items.length, items.map(renderItem).join(''));
-      }).join('');
-      return folder(role, t(role === 'students' ? 'library.students' : 'library.teachers'), total, children);
+    const groups = new Map([['teachers', []], ['students', []]]);
+    for (const page of pages) groups.get(page.role === 'students' ? 'students' : 'teachers').push(page);
+    return [...groups].filter(([, items]) => !searching || items.length).map(([role, items]) => {
+      const open = searching || expandedDirs.has(role), id = domId(role);
+      const label = t(role === 'students' ? 'library.students' : 'search.staff');
+      return `<div class="wiki-node" data-dir="${role}"><button type="button" class="folder-row" data-dir-toggle="${role}" aria-expanded="${open}" aria-controls="${id}"><span class="folder-chevron${open ? ' is-open' : ''}" aria-hidden="true">▸</span><span class="folder-name">${escapeHtml(label)}</span><span class="folder-count">${items.length}</span></button><div id="${id}" class="folder-children" ${open ? '' : 'hidden'}>${items.map(renderItem).join('')}</div></div>`;
     }).join('');
   };
 

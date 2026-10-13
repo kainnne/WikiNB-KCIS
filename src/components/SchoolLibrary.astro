@@ -12,7 +12,6 @@ const base=import.meta.env.BASE_URL;
       {!mine&&<div class="library-roles" role="group" aria-label="Uploaded by"><button type="button" data-role="" aria-pressed="true" data-i18n="library.all">All</button><button type="button" data-role="teachers" aria-pressed="false" data-i18n="library.teachers">Teachers</button><button type="button" data-role="students" aria-pressed="false" data-i18n="library.students">Students</button><button type="button" data-role="forum" aria-pressed="false">AI Forum</button></div>}
       <input id="library-query" type="search" data-i18n-placeholder="search.placeholder" data-i18n-aria="search.placeholder" placeholder="Search documents or keywords" aria-label="Search documents or keywords" />
     </div>
-    <div id="library-categories" class="library-categories" data-i18n-aria="library.categories" aria-label="Categories"></div>
     <div class:list={['library-columns',mine&&'library-mine']}>
       <div>
         <div id="library-files" class="library-files"></div>

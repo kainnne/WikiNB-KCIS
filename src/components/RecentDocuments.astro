@@ -10,7 +10,7 @@ const base=import.meta.env.BASE_URL;
   import {fetchMe} from '../scripts/auth-client.js';
   import {readSchoolDocuments} from '../scripts/shared-documents.js';
   import {createRecentDocumentsState} from '../lib/recent-documents-state.js';
-  import {t,getLocale} from '../scripts/i18n.js';
+  import {t} from '../scripts/i18n.js';
   const section=document.getElementById('home-documents'),list=document.getElementById('home-documents-list'),status=document.getElementById('home-documents-status');
   function render(state){
     section.hidden=state.phase==='anonymous';
@@ -23,7 +23,7 @@ const base=import.meta.env.BASE_URL;
       const tags=document.createElement('div');tags.className='recent-document-tags';
       for(const word of (file.keywords||[]).slice(0,3)){const tag=document.createElement('span');tag.className='tag-badge';tag.textContent=word==='教職員'?t('account.staff'):word==='學生'?t('account.student'):word;tag.title=tag.textContent;tags.append(tag);}
       const title=document.createElement('h3');title.className='recent-document-title';title.textContent=file.title||file.filename;link.title=title.textContent;
-      const category=document.createElement('p');category.className='recent-document-category';const matched=state.categories.find(row=>row.id===file.category);category.textContent=(getLocale()==='en'?matched?.en:matched?.zh)||file.category;
+      const category=document.createElement('p');category.className='recent-document-category';category.textContent=t(file.role==='students'?'library.students':'search.staff');
       link.append(tags,title,category);list.append(link);
     }
   }

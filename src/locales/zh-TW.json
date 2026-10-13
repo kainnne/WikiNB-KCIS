@@ -453,5 +453,10 @@
   "reader.failed": "無法載入這份文件。",
   "search.folderCount": "{n} 篇文件",
   "reader.copy": "複製連結",
-  "reader.copyFailed": "無法複製連結"
+  "reader.copyFailed": "無法複製連結",
+  "search.staff": "教職員",
+  "upload.stepCopy": "複製上方的提示詞。",
+  "upload.stepKuse": "開啟 Kuse × 康軒，上傳你的文件並貼上提示詞。",
+  "upload.stepDownload": "下載 Kuse 整理好的 .md 檔。",
+  "upload.stepReturn": "回到這裡，選擇「上傳 MD」上傳檔案。"
 }

@@ -1,10 +1,10 @@
 import {getAuthUrl, fetchMe, isTeacherUser} from './auth-client.js';
 import {markdownToHtml} from './md-render.js';
 import {createReaderControls,bindReaderCopy} from './reader-controls.js';
-import {t,getLocale,uiError} from './i18n.js';
+import {t,uiError} from './i18n.js';
 const el=id=>document.getElementById(id), mine=el('school-library').dataset.mine==='true';
 const readerControls=createReaderControls(el('library-reader'),el('library-maximize'));
-let categories=[],files=[],role='',category='',current=null,busy=false;
+let files=[],role='',current=null,busy=false;
 bindReaderCopy(el('library-copy'), () => pageBase+'note?'+new URLSearchParams({file:current.id}));
 const base=getAuthUrl(), pageBase=document.documentElement.dataset.base;
 async function request(path,body){
@@ -14,17 +14,14 @@ async function request(path,body){
 function status(text=''){el('library-status').textContent=text;}
 let loadingKey='library.loading';
 async function perform(fn,key='library.loading'){if(busy)return;busy=true;loadingKey=key;status(t(loadingKey));try{await fn();status();}catch(error){status(uiError(error));if([401,403].includes(error.status)){el('library-content').hidden=true;el('library-gate').hidden=false;}}finally{busy=false;}}
-function categoryName(id){return (getLocale()==='en'?categories.find(c=>c.id===id)?.en:categories.find(c=>c.id===id)?.zh)||categories.find(c=>c.id===id)?.en||id;}
 function tags(words){const box=document.createElement('div');box.className='library-tags';for(const word of words||[]){const tag=document.createElement('span');tag.className='tag-badge';tag.textContent=word==='教職員'?t('account.staff'):word==='學生'?t('account.student'):word;box.append(tag);}return box;}
 function render(){
-  el('library-categories').replaceChildren();
-  for(const c of [{id:'',en:t('library.allCategories'),zh:t('library.allCategories')},...categories]){const button=document.createElement('button');button.type='button';button.textContent=getLocale()==='en'?c.en:c.zh||c.en;button.setAttribute('aria-pressed',String(c.id===category));button.onclick=()=>{category=c.id;render();};el('library-categories').append(button);}
   const q=el('library-query').value.toLowerCase();el('library-files').replaceChildren();
-  const visible=files.filter(f=>(!role||(role==='forum'?['forum','forum-article'].includes(f.source):f.role===role))&&(!category||f.category===category)&&(!q||(f.filename+' '+f.preview+' '+(f.keywords||[]).join(' ')).toLowerCase().includes(q)));
+  const visible=files.filter(f=>(!role||(role==='forum'?['forum','forum-article'].includes(f.source):f.role===role))&&(!q||(f.filename+' '+f.preview+' '+(f.keywords||[]).join(' ')).toLowerCase().includes(q)));
   for(const f of visible){
     const button=document.createElement('button');button.type='button';button.className='library-file';
     const title=document.createElement('strong');title.textContent=f.filename;
-    const meta=document.createElement('small');meta.textContent=['forum','forum-article'].includes(f.source)?`AI Forum · ${f.source==='forum-article'?t('library.article'):f.resolution||t('library.solution')} · ${categoryName(f.category)}`:`${f.uploader} · ${categoryName(f.category)} · ${f.readable?t('library.searchable'):f.status==='conversion-failed'?t('upload.conversionFailed'):t('upload.noText')}`;
+    const meta=document.createElement('small');meta.textContent=['forum','forum-article'].includes(f.source)?`AI Forum · ${f.source==='forum-article'?t('library.article'):f.resolution||t('library.solution')}`:`${f.uploader} · ${f.readable?t('library.searchable'):f.status==='conversion-failed'?t('upload.conversionFailed'):t('upload.noText')}`;
     button.append(title,meta,tags(f.keywords));button.onclick=()=>void perform(()=>openFile(f.id));el('library-files').append(button);
   }
   if(!visible.length){const p=document.createElement('p');p.textContent=t('library.noDocuments');el('library-files').append(p);}
@@ -55,7 +52,7 @@ el('library-ask')?.addEventListener('submit',event=>{event.preventDefault();void
 async function access(){
   const session=await fetchMe();el('library-upload').hidden=!(session.authenticated&&isTeacherUser(session.user));
   if(!session.authenticated){el('library-gate').hidden=false;return;}
-  const data=await request(mine?'?mine=1':'');categories=data.categories;files=data.files;
+  const data=await request(mine?'?mine=1':'');files=data.files;
   el('library-gate').hidden=true;el('library-content').hidden=false;render();
   const selected=new URLSearchParams(location.search).get('file');if(selected)await openFile(selected);
 }
@@ -64,7 +61,7 @@ void perform(access,'library.documentsLoading');
 let observedProfile='',accountRefresh=0;
 async function refreshAccountFiles(){
  const generation=++accountRefresh,selected=current?.id;
- try{const data=await request(mine?'?mine=1':'');if(generation!==accountRefresh)return;categories=data.categories;files=data.files;el('library-gate').hidden=true;el('library-content').hidden=false;render();
+ try{const data=await request(mine?'?mine=1':'');if(generation!==accountRefresh)return;files=data.files;el('library-gate').hidden=true;el('library-content').hidden=false;render();
   if(selected){const fresh=await request('/files/'+selected);if(generation!==accountRefresh||current?.id!==selected)return;current=fresh;el('library-reader-keywords').replaceChildren(...tags(fresh.keywords).children);}
  }catch(error){if(generation===accountRefresh)status(uiError(error));}
 }

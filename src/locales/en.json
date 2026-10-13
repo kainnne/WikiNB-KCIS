@@ -455,5 +455,10 @@
   "reader.failed": "Could not load this document.",
   "search.folderCount": "{n} documents",
   "reader.copy": "Copy link",
-  "reader.copyFailed": "Could not copy link"
+  "reader.copyFailed": "Could not copy link",
+  "search.staff": "Staff",
+  "upload.stepCopy": "Copy the prompt above.",
+  "upload.stepKuse": "Open Kuse × 康軒, upload your files, and paste the prompt.",
+  "upload.stepDownload": "Download the .md file from Kuse.",
+  "upload.stepReturn": "Return here and choose Upload MD to upload it."
 }

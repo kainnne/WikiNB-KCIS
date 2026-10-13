@@ -8,8 +8,8 @@
 
 - 登入集中在 AI Tools 右上角：只輸入信箱與 OTP，暱稱預設為信箱 @ 前字串；使用 HttpOnly session。除兩個指定測試帳號外，不接受一般 Gmail。前端僅保存介面狀態，權限由 API 判斷。
 - 信箱 local-part 開頭為 s/j 加恰好五位數字時預設學生，其餘為老師；名單可覆寫。唯一管理員為 `kainnne@kcis.com.tw`。
-- 上傳分為 `teachers`、`students`，各四類：`academic`、`extracurricular`、`ai-resolved`、`ai-articles`。依檔名／可抽取文字規則分類，不用 LLM。
-- 教師只上傳 UTF-8 MD，每檔最多 1 MB；學生只能閱讀。上傳入口為「上傳 MD／如何上傳 MD」兩張字卡，說明下方提供 Kuse 與 Kuse × 康軒連結。目前不開放 PDF／DOCX 轉檔，亦不接受 TXT。Keywords 使用當下姓名與部門，另可補充最多 12 個關鍵字。
+- WikiNB 瀏覽只分「教職員／學生」（Staff/Students）一層，直接列出文章；首頁與 My documents 不再提供 AI 文章／學科等分類入口。既有分類 metadata 與 Drive 存放位置保留作後台資料識別，不搬移或刪除文件。
+- 教師只上傳 UTF-8 MD，每檔最多 1 MB；學生只能閱讀。上傳入口為「上傳 MD／如何上傳 MD」兩張字卡，說明使用四步條列，提供原有提示詞、複製按鈕與 Kuse × 康軒連結。目前不開放 PDF／DOCX 轉檔，亦不接受 TXT。Keywords 使用當下姓名與部門，另可補充最多 12 個關鍵字。
 - 所有新資料都經 `/api/library` 校內 session 檢查後共享，不以公開靜態檔提供。舊課堂資料保留原權限，不自動改為全校公開。
 - 論壇解決紀錄由具秘密金鑰的服務匯入，版本保留；Worker 每五分鐘送出待同步佇列，失敗保留並重試；同題更新沿用文件 ID、舊版留在 versions，重複送達不新增文件。管理員隱藏／還原會同步，普通帳號不能刪除。
 
