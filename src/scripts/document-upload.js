@@ -9,6 +9,21 @@ for(const [buttonId,panelId] of choices)el(buttonId).addEventListener('click',()
   const open=el(panelId).hidden;
   for(const [otherButton,otherPanel] of choices){el(otherPanel).hidden=otherPanel!==panelId||!open;el(otherButton).setAttribute('aria-expanded',String(otherPanel===panelId&&open));}
 });
+const promptText=el('upload-prompt-text'), copyPrompt=el('upload-copy-prompt');
+let copyFeedbackTimer;
+function resetPrompt(){clearTimeout(copyFeedbackTimer);promptText.value=t('upload.prompt');el('upload-copy-label').textContent=t('upload.copy');el('upload-copy-status').textContent='';el('upload-copy-status').classList.add('sr-only');}
+copyPrompt.addEventListener('click',async()=>{
+  const value=promptText.value;copyPrompt.disabled=true;
+  try{
+    try{if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');await navigator.clipboard.writeText(value);}
+    catch{promptText.focus();promptText.select();if(!document.execCommand('copy'))throw Error('Copy failed');}
+    el('upload-copy-label').textContent=t('upload.copied');el('upload-copy-status').classList.add('sr-only');el('upload-copy-status').textContent=t('upload.copied');
+    clearTimeout(copyFeedbackTimer);copyFeedbackTimer=setTimeout(()=>{el('upload-copy-label').textContent=t('upload.copy');el('upload-copy-status').textContent='';el('upload-copy-status').classList.add('sr-only');},1600);
+  }catch{promptText.focus();promptText.select();el('upload-copy-status').classList.remove('sr-only');el('upload-copy-status').textContent=t('upload.copyFailed');}
+  finally{copyPrompt.disabled=false;}
+});
+resetPrompt();
+document.addEventListener('wikinb:locale-change',resetPrompt);
 function status(message=''){el('upload-status').textContent=message;}
 function draw(){
   el('upload-queue').replaceChildren();

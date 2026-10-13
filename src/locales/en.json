@@ -436,11 +436,14 @@
   "library.earlierFailed": "Earlier notes could not be loaded.",
   "library.allDocuments": "All documents",
   "upload.conversionUnavailable": "PDF/DOCX conversion is currently unavailable.",
-  "upload.kuse": "Go to Kuse",
   "upload.how": "How to upload MD",
-  "upload.step1": "Use Kuse to organize your material as Markdown, then check the content.",
-  "upload.step2": "Save it as a UTF-8 .md file. Renaming a PDF or Word file is not a conversion.",
-  "upload.step3": "Sign in, drop the .md file here, add optional keywords, and upload.",
   "upload.partner": "Kuse × 康軒",
-  "upload.card": "Upload MD"
+  "upload.card": "Upload MD",
+  "upload.promptTitle": "Prepare MD",
+  "upload.copy": "Copy",
+  "upload.copied": "Copied",
+  "upload.copyFailed": "Could not copy. Select the text and copy it manually.",
+  "upload.prompt": "Please turn the files I uploaded into downloadable Markdown (.md) files.\n\nKeep all the original text. Do not summarize, remove, or rewrite it. Organize the paragraphs in the original reading order. Use headings, **bold**, lists, or tables where helpful, without changing the wording.\n\nCheck whether each image matters to understanding the content. Use a vision model (VLM) to read important images and preserve their text and necessary information. You may skip purely decorative images. Keep image descriptions separate from the original text.\n\nBefore finishing, check that all the original text is still there.",
+  "upload.intro": "MD (Markdown) is a common plain-text format that keeps headings, lists, and tables organized. AI can help turn your existing materials into MD.",
+  "upload.guide": "Upload your own files to Kuse × 康軒, then paste this prompt. Download the .md files it creates and return here to upload them."
 }
