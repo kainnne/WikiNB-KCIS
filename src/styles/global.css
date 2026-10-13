@@ -416,3 +416,5 @@
 @media(max-width:640px){.folder-children{margin-left:10px}.wiki-tree .folder-row{padding:12px;gap:8px}.wiki-item-header{padding:16px 12px;gap:8px}.wiki-title-link{font-size:17px}.wiki-card-actions{flex-direction:column}.wiki-panel{padding:20px 14px 28px}.wiki-reader-modal{inset:8px;width:calc(100% - 16px);height:calc(100dvh - 16px);border-radius:16px}.wiki-reader-modal .wiki-card-actions{flex-direction:row}.wiki-reader-modal .wiki-reader-body{padding:20px 16px 32px}.folder-count{font-size:11px}}
 @media(prefers-reduced-motion:reduce){.wiki-expand,.wiki-fs-btn,.wiki-title-link,.folder-row,.folder-chevron,.wiki-chevron{transition:none!important}}
 .note-reader-toolbar{gap:6px}.wiki-content [id]{scroll-margin-top:24px}
+.note-reader-label{flex:1;min-width:0;align-self:center;font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:640px){.wiki-fs-btn,.wiki-expand{min-width:44px;min-height:44px}.wiki-card-actions{gap:4px}}

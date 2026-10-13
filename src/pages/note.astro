@@ -14,7 +14,7 @@ const base = import.meta.env.BASE_URL;
     <div id="note-error" class="kc-card hidden border border-red-200 bg-red-50/80 p-6 text-red-800"></div>
 
     <article id="note-article" class="note-reader hidden">
-      <div class="note-reader-toolbar"><button id="note-copy" type="button" class="wiki-fs-btn wiki-copy-btn" data-i18n-aria="reader.copy" aria-label="Copy link"><span class="wiki-copy-label">copy</span></button><button id="note-maximize" type="button" class="wiki-fs-btn" aria-label="Expand reader"><span class="wiki-fs-icon" aria-hidden="true">⛶</span></button></div>
+      <div class="note-reader-toolbar"><span id="note-reader-label" class="note-reader-label"></span><button id="note-copy" type="button" class="wiki-fs-btn wiki-copy-btn" data-i18n-aria="reader.copy" aria-label="Copy link"><span class="wiki-copy-label">copy</span></button><button id="note-maximize" type="button" class="wiki-fs-btn" aria-label="Expand reader"><span class="wiki-fs-icon" aria-hidden="true">⛶</span></button></div>
       <div class="wiki-reader-body">
       <header class="mb-8">
         <div id="note-tags" class="mb-3 flex flex-wrap items-center gap-2"></div>
@@ -73,6 +73,7 @@ const base = import.meta.env.BASE_URL;
     const revision=++sharedRevision,data=await readSchoolDocuments('/files/'+encodeURIComponent(fileId));if(revision!==sharedRevision)return;sharedDocument=data;
     document.title=(data.title||data.filename)+' · WikiNB KCIS';
     document.getElementById('note-title').textContent=data.title||data.filename;
+    document.getElementById('note-reader-label').textContent=data.title||data.filename;
     renderDocumentKeywords();
     document.getElementById('note-meta').textContent=data.filename;
     const body=document.getElementById('note-body');body.innerHTML=markdownToHtml(String(data.markdown||'').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/,''),{base:pageBase(),linkifyWiki:false});
@@ -166,6 +167,7 @@ const base = import.meta.env.BASE_URL;
       const tagsEl = document.getElementById('note-tags');
       const metaEl = document.getElementById('note-meta');
       if (titleEl) titleEl.textContent = title;
+      document.getElementById('note-reader-label').textContent=title;
       if (metaEl) {
         metaEl.textContent = `${data.storage || 'live'} · ${teacherId}/${subjectId}/${slug}.md`;
       }

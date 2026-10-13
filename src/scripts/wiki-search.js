@@ -13,7 +13,7 @@ export function createWikiSearch(initialIndex, options = {}) {
   const domId = value => 'wiki-' + Array.from(String(value), ch => ch.codePointAt(0).toString(16)).join('-');
   const getBase = () => document.documentElement.dataset.base || '/';
   const canRead = () => authed;
-  const matchesQuery = (page, query) => [page.slug, page.title, page.displayFilename, page.description, page.teacher, page.subject, page.subjectEn, ...(page.keywords || []), ...(page.tags || [])].join(' ').toLowerCase().includes(query.trim().toLowerCase());
+  const matchesQuery = (page, query) => [page.slug.startsWith('documents/') ? '' : page.slug, page.title, page.displayFilename, page.description, page.teacher, page.subject, page.subjectEn, page.categoryZh, ...(page.keywords || []), ...(page.tags || [])].join(' ').toLowerCase().includes(query.trim().toLowerCase());
   const filterPages = query => searchIndex.filter(page => matchesQuery(page, query));
   const clearReaders = () => { readers.forEach(reader => reader.destroy()); readers = []; };
   const setIndex = next => { revision++; clearReaders(); contentCache.clear(); searchIndex = Array.isArray(next) ? next : []; };

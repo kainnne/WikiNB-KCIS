@@ -3,7 +3,8 @@ import { t } from './i18n.js';
 // Moving the same reader preserves its content, nested details and scroll position.
 // A native modal supplies focus trapping and Escape without changing the page.
 export function createReaderControls(reader, toggle, { beforeExpand } = {}) {
-  let modal = null, placeholder = null, previousFocus = null;
+  let modal = null, placeholder = null, previousFocus = null, parentScroll = [];
+  const titleButton = reader.querySelector('.wiki-title-link');
   const updateLabel = () => {
     const label = t(modal ? 'reader.restore' : 'reader.maximize');
     toggle.setAttribute('aria-label', label);
@@ -18,9 +19,11 @@ export function createReaderControls(reader, toggle, { beforeExpand } = {}) {
     const scrollTop = scroller?.scrollTop || 0;
     placeholder.replaceWith(reader);
     reader.classList.remove('is-fullscreen');
+    if (titleButton) titleButton.disabled = false;
     modal = null;
     current.remove();
     if (scroller) scroller.scrollTop = scrollTop;
+    parentScroll.forEach(({element,top,left}) => { element.scrollTop = top; element.scrollLeft = left; });
     document.documentElement.classList.remove('wiki-fs-active');
     updateLabel();
     if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
@@ -29,6 +32,8 @@ export function createReaderControls(reader, toggle, { beforeExpand } = {}) {
     if (modal || beforeExpand?.() === false) return;
     const scroller = reader.querySelector('.wiki-reader-body');
     const scrollTop = scroller?.scrollTop || 0;
+    parentScroll = [];
+    for (let element = reader.parentElement; element; element = element.parentElement) parentScroll.push({element,top:element.scrollTop,left:element.scrollLeft});
     previousFocus = document.activeElement;
     placeholder = document.createComment('reader position');
     reader.before(placeholder);
@@ -37,6 +42,7 @@ export function createReaderControls(reader, toggle, { beforeExpand } = {}) {
     modal.setAttribute('aria-label', reader.querySelector('h1,h2,.wiki-title-link')?.textContent || 'WikiNB');
     modal.append(reader);
     reader.classList.add('is-fullscreen');
+    if (titleButton) titleButton.disabled = true;
     document.body.append(modal);
     modal.addEventListener('cancel', event => { event.preventDefault(); restore(); });
     modal.addEventListener('close', restore);
