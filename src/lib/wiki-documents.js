@@ -8,3 +8,9 @@ export function schoolDocumentsIndex(files,categories=[],base='/'){
     href:base+'note?'+new URLSearchParams({file:file.id}),live:true,
   }));
 }
+
+export function groupDocumentsByUploader(pages, { includeEmpty = true } = {}) {
+  const groups = new Map([['teachers', []], ['students', []]]);
+  for (const page of pages || []) groups.get(page.role === 'students' ? 'students' : 'teachers').push(page);
+  return [...groups].filter(([, items]) => includeEmpty || items.length);
+}

@@ -2,6 +2,7 @@ import { t, getLocale } from './i18n.js';
 import { gatedNoteHref, notePageHref, markdownToHtml } from './md-render.js';
 import { hasSessionHint, readWikiFile } from './auth-client.js';
 import { readSchoolDocuments, resolveDocumentAssets } from './shared-documents.js';
+import { groupDocumentsByUploader } from '../lib/wiki-documents.js';
 import { createReaderControls, bindReaderCopy } from './reader-controls.js';
 
 export function createWikiSearch(initialIndex, options = {}) {
@@ -48,9 +49,7 @@ export function createWikiSearch(initialIndex, options = {}) {
 
   // Browse by uploader group only; document source metadata remains available to AI.
   const renderTree = (pages, searching) => {
-    const groups = new Map([['teachers', []], ['students', []]]);
-    for (const page of pages) groups.get(page.role === 'students' ? 'students' : 'teachers').push(page);
-    return [...groups].filter(([, items]) => !searching || items.length).map(([role, items]) => {
+    return groupDocumentsByUploader(pages, { includeEmpty: !searching }).map(([role, items]) => {
       const open = searching || expandedDirs.has(role), id = domId(role);
       const label = t(role === 'students' ? 'library.students' : 'search.staff');
       return `<div class="wiki-node" data-dir="${role}"><button type="button" class="folder-row" data-dir-toggle="${role}" aria-expanded="${open}" aria-controls="${id}"><span class="folder-chevron${open ? ' is-open' : ''}" aria-hidden="true">▸</span><span class="folder-name">${escapeHtml(label)}</span><span class="folder-count">${items.length}</span></button><div id="${id}" class="folder-children" ${open ? '' : 'hidden'}>${items.map(renderItem).join('')}</div></div>`;
@@ -130,7 +129,7 @@ export function createWikiSearch(initialIndex, options = {}) {
   }
   const renderResults = ({query, resultsEl, emptyEl, metaEl}) => {
     clearReaders();
-    if (pendingStatus) { if (metaEl) metaEl.textContent = pendingStatus; resultsEl.classList.add('hidden'); emptyEl?.classList.add('hidden'); return; }
+    if (pendingStatus) { if (metaEl) metaEl.textContent = t(pendingStatus); resultsEl.classList.add('hidden'); emptyEl?.classList.add('hidden'); return; }
     const q = query.trim(), results = filterPages(q);
     if (metaEl) metaEl.textContent = q ? (results.length ? t('search.metaFound', {n: results.length, q}) : t('search.metaNone', {q})) : (results.length ? t('search.metaAll', {n: results.length}) : t('search.metaEmpty'));
     resultsEl.replaceChildren();

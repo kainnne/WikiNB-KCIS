@@ -72,7 +72,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
     }
     async function loadCatalog(user,generation) {
       try {
-        setStatus(t('library.documentsLoading'));runSearch();
+        setStatus('library.documentsLoading');runSearch();
         const school=await readSchoolDocuments();
         if(generation!==catalogGeneration)return;
         setIndex(schoolDocumentsIndex(school.files,school.categories,pageBase()));
@@ -81,7 +81,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
       } catch(error) {
         if(generation!==catalogGeneration)return;
         catalogKey='';
-        setStatus(t('library.documentsFailed'));runSearch();
+        setStatus('library.documentsFailed');runSearch();
       }
 
     }
@@ -89,7 +89,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
     async function initAuthAndCatalog() {
       const session = await fetchMe();
       if (!session.authenticated) {
-        catalogGeneration++;catalogKey='';setIndex(staticIndex);setStatus('');
+        catalogGeneration++;catalogKey='';setIndex(staticIndex);setStatus(session.offline?'library.documentsFailed':'library.gate');
         setAuthed(false);
         runSearch();
         return;
@@ -100,7 +100,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
 
     const q = getQueryFromUrl();
     if (q && input) input.value = q;
-    setStatus(t('library.documentsLoading'));runSearch();
+    setStatus('library.documentsLoading');runSearch();
     initAuthAndCatalog();
 
     document.addEventListener('wikinb:locale-change', () => runSearch());
@@ -108,7 +108,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
       const loggedIn = Boolean(ev.detail?.loggedIn);
       setAuthed(loggedIn);
       if(loggedIn)void loadLiveCatalog(ev.detail.user);
-      else{catalogGeneration++;catalogKey='';setIndex(staticIndex);setStatus('');runSearch();}
+      else{catalogGeneration++;catalogKey='';setIndex(staticIndex);setStatus('library.gate');runSearch();}
     });
     window.addEventListener('kcis:account-updated',event=>{if(event.detail?.user)event.detail.waitUntil?.(loadLiveCatalog(event.detail.user));});
   </script>
