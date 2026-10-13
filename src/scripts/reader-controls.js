@@ -23,8 +23,8 @@ export function createReaderControls(reader, toggle, { beforeExpand } = {}) {
     modal = null;
     current.remove();
     if (scroller) scroller.scrollTop = scrollTop;
-    parentScroll.forEach(({element,top,left}) => { element.scrollTop = top; element.scrollLeft = left; });
     document.documentElement.classList.remove('wiki-fs-active');
+    parentScroll.forEach(({element,top,left}) => element.scrollTo({top,left,behavior:'instant'}));
     updateLabel();
     if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
   };
@@ -71,7 +71,16 @@ export function bindReaderCopy(button, getHref) {
     try {
       const url = new URL(getHref(), location.origin);
       url.searchParams.delete('fs');
-      await navigator.clipboard.writeText(url.href);
+      url.hash = '';
+      const textarea = document.createElement('textarea'), focus = document.activeElement;
+      textarea.value = url.href;
+      textarea.setAttribute('readonly', '');
+      textarea.style.cssText = 'position:fixed;left:-9999px;top:0';
+      (button.closest('dialog') || document.body).append(textarea);
+      textarea.select();
+      let copied = false;
+      try { copied = document.execCommand('copy'); } finally { textarea.remove(); focus?.focus({preventScroll:true}); }
+      if (!copied) await navigator.clipboard.writeText(url.href);
       const label = button.querySelector('.wiki-copy-label');
       label.textContent = 'copied';
       setTimeout(() => { label.textContent = 'copy'; }, 1400);
