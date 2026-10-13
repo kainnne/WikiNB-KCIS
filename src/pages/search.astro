@@ -72,7 +72,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
     }
     async function loadCatalog(user,generation) {
       try {
-        setStatus(t('library.loading'));runSearch();
+        setStatus(t('library.documentsLoading'));runSearch();
         const school=await readSchoolDocuments();
         if(generation!==catalogGeneration)return;
         setIndex(schoolDocumentsIndex(school.files,school.categories,pageBase()));
@@ -81,7 +81,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
       } catch(error) {
         if(generation!==catalogGeneration)return;
         catalogKey='';
-        setStatus(t('library.failed'));runSearch();
+        setStatus(t('library.documentsFailed'));runSearch();
       }
 
     }
@@ -100,7 +100,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
 
     const q = getQueryFromUrl();
     if (q && input) input.value = q;
-    setStatus(t('library.loading'));runSearch();
+    setStatus(t('library.documentsLoading'));runSearch();
     initAuthAndCatalog();
 
     document.addEventListener('wikinb:locale-change', () => runSearch());

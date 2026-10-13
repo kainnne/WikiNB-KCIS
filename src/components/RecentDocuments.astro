@@ -1,35 +1,44 @@
 ---
 const base=import.meta.env.BASE_URL;
 ---
-<section id="home-documents" hidden>
+<section id="home-documents">
   <div class="recent-documents-heading"><h2 data-i18n="home.recent">Recently updated</h2><a href={`${base}search`} data-i18n="library.allDocuments">All documents</a></div>
-  <div id="home-documents-list" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+  <p id="home-documents-status" role="status" aria-live="polite">Loading database documents…</p>
+  <div id="home-documents-list" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true"></div>
 </section>
 <script>
   import {fetchMe} from '../scripts/auth-client.js';
   import {readSchoolDocuments} from '../scripts/shared-documents.js';
+  import {createRecentDocumentsState} from '../lib/recent-documents-state.js';
   import {t,getLocale} from '../scripts/i18n.js';
-  const section=document.getElementById('home-documents'),list=document.getElementById('home-documents-list');
-  let generation=0,rows=[],categories=[];
-  function render(){
+  const section=document.getElementById('home-documents'),list=document.getElementById('home-documents-list'),status=document.getElementById('home-documents-status');
+  function render(state){
+    section.hidden=state.phase==='anonymous';
+    list.setAttribute('aria-busy',String(state.phase==='loading'));
+    status.hidden=state.phase==='anonymous'||(state.phase==='ready'&&state.files.length>0);
+    status.textContent=state.phase==='loading'?t('library.documentsLoading'):state.phase==='error'?t('library.documentsFailed'):state.phase==='ready'&&!state.files.length?t('library.noDocuments'):'';
     list.replaceChildren();
-    for(const file of rows){
-      const link=document.createElement('a');link.className='wiki-preview-card kc-card-hover flex h-full flex-col p-5 md:p-6';link.href=(document.documentElement.dataset.base||'/')+'note?'+new URLSearchParams({file:file.id});
-      const tags=document.createElement('div');tags.className='mb-3 flex flex-wrap gap-2';
-      for(const word of file.keywords||[]){const tag=document.createElement('span');tag.className='tag-badge';tag.textContent=word==='教職員'?t('account.staff'):word==='學生'?t('account.student'):word;tags.append(tag);}
-      const title=document.createElement('h3');title.className='font-display text-lg font-bold text-kc-blue-deep';title.textContent=file.title||file.filename;
-      const category=document.createElement('p');category.className='mt-2 text-sm text-kc-muted';const matched=categories.find(row=>row.id===file.category);category.textContent=(getLocale()==='en'?matched?.en:matched?.zh)||file.category;
+    for(const file of state.files){
+      const link=document.createElement('a');link.className='recent-document-card kc-card-hover';link.href=(document.documentElement.dataset.base||'/')+'note?'+new URLSearchParams({file:file.id});
+      const tags=document.createElement('div');tags.className='recent-document-tags';
+      for(const word of (file.keywords||[]).slice(0,3)){const tag=document.createElement('span');tag.className='tag-badge';tag.textContent=word==='教職員'?t('account.staff'):word==='學生'?t('account.student'):word;tag.title=tag.textContent;tags.append(tag);}
+      const title=document.createElement('h3');title.className='recent-document-title';title.textContent=file.title||file.filename;link.title=title.textContent;
+      const category=document.createElement('p');category.className='recent-document-category';const matched=state.categories.find(row=>row.id===file.category);category.textContent=(getLocale()==='en'?matched?.en:matched?.zh)||file.category;
       link.append(tags,title,category);list.append(link);
     }
-    section.hidden=!rows.length;
   }
-  async function load(){const current=++generation;try{const data=await readSchoolDocuments();if(current!==generation)return;categories=data.categories;rows=data.files.filter(file=>!file.deletedAt).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt))).slice(0,6);render();}catch{if(current===generation){rows=[];render();}}}
-  async function init(){const me=await fetchMe();if(me.authenticated)void load();}
+  const controller=createRecentDocumentsState(readSchoolDocuments,render);
+  render(controller.getState());
+  let authGeneration=0;
+  async function init(){const current=authGeneration,me=await fetchMe();if(current!==authGeneration)return;if(me.authenticated)void controller.load(me.user);else if(me.offline)controller.unavailable();else controller.signedOut();}
   void init();
-  document.addEventListener('wikinb:auth-change',event=>{if(event.detail?.loggedIn)void load();else{generation++;rows=[];render();}});
-  document.addEventListener('wikinb:locale-change',render);
-  window.addEventListener('kcis:account-updated',event=>event.detail?.waitUntil?.(load()));
+  document.addEventListener('wikinb:auth-change',event=>{authGeneration++;if(event.detail?.loggedIn)void controller.load(event.detail.user);else controller.signedOut();});
+  document.addEventListener('wikinb:locale-change',()=>render(controller.getState()));
+  window.addEventListener('kcis:account-updated',event=>{if(event.detail?.user)event.detail.waitUntil?.(controller.load(event.detail.user,{force:true}));});
 </script>
 <style>
-  #home-documents{margin-top:12px}.recent-documents-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}.recent-documents-heading h2{font-family:Nunito,'Noto Sans TC',sans-serif;font-size:24px;font-weight:700;color:var(--kc-blue-deep)}.recent-documents-heading>a{font-size:14px;color:var(--kc-blue);text-decoration:underline;text-underline-offset:4px;white-space:nowrap}.recent-documents-heading>a:focus-visible{outline:3px solid var(--kc-purple-soft);outline-offset:4px}
+  #home-documents{margin-top:12px}#home-documents[hidden]{display:none}.recent-documents-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}.recent-documents-heading h2{font-family:Nunito,'Noto Sans TC',sans-serif;font-size:24px;font-weight:700;color:var(--kc-blue-deep)}.recent-documents-heading>a{font-size:14px;color:var(--kc-blue);text-decoration:underline;text-underline-offset:4px;white-space:nowrap}.recent-documents-heading>a:focus-visible{outline:3px solid var(--kc-purple-soft);outline-offset:4px}
+  #home-documents-list{grid-auto-rows:1fr}#home-documents-status{margin-bottom:18px;color:var(--kc-muted);font-size:14px}#home-documents-status[hidden]{display:none}
+  :global(.recent-document-card){display:flex;flex-direction:column;height:100%;min-height:196px;min-width:0;padding:24px}:global(.recent-document-tags){display:flex;align-items:center;gap:8px;height:30px;min-width:0;margin-bottom:14px;overflow:hidden}:global(.recent-document-tags .tag-badge){flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}:global(.recent-document-title){display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;font-family:Nunito,'Noto Sans TC',sans-serif;font-size:20px;font-weight:700;line-height:1.5;color:var(--kc-blue-deep)}:global(.recent-document-category){margin-top:auto;padding-top:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--kc-muted);font-size:14px;line-height:1.5}:global(.recent-document-card:focus-visible){outline:3px solid var(--kc-purple-soft);outline-offset:4px}
+  @media(max-width:640px){:global(.recent-document-card){min-height:180px;padding:20px}:global(.recent-document-title){font-size:18px}}
 </style>

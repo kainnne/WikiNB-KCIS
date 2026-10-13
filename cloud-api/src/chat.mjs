@@ -209,10 +209,10 @@ export async function chatAnswer(env, input) {
       const rejected = response.status === 401 || response.status === 403;
       throw Object.assign(
         Error(quota
-          ? "Gemini usage or request limits may have been reached. Please try again later."
+          ? "The free AI allowance may have been reached. Please try again later."
           : rejected
-            ? "Gemini rejected the request. Please ask the administrator to check the API key, permissions, and usage limits."
-            : "Gemini is temporarily busy. Please try again later."),
+            ? "AI rejected the request. Please ask the administrator to check permissions and the free AI allowance."
+            : "AI is temporarily busy. Please try again later."),
         { status: quota ? 429 : 503, code: quota ? "AI_QUOTA" : rejected ? "AI_CONFIG" : "AI_BUSY", retryable: quota || !rejected },
       );
     }

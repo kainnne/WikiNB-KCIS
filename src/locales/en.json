@@ -445,5 +445,7 @@
   "upload.copyFailed": "Could not copy. Select the text and copy it manually.",
   "upload.prompt": "Please turn the files I uploaded into downloadable Markdown (.md) files.\n\nKeep all the original text. Do not summarize, remove, or rewrite it. Organize the paragraphs in the original reading order. Use headings, **bold**, lists, or tables where helpful, without changing the wording.\n\nCheck whether each image matters to understanding the content. Use AI that can read images to preserve the text and necessary information in important images. You may skip purely decorative images, but still keep any original text inside them. Keep image descriptions separate from the original text. Mark anything you cannot read rather than guessing.\n\nBefore finishing, check that all the original text is still there.",
   "upload.intro": "MD (Markdown) is a common plain-text format that keeps headings, lists, and tables organized. AI can help turn your existing materials into MD.",
-  "upload.guide": "Upload your own files to Kuse × 康軒, then paste this prompt. Download the .md files it creates and return here to upload them."
+  "upload.guide": "Upload your own files to Kuse × 康軒, then paste this prompt. Download the .md files it creates and return here to upload them.",
+  "library.documentsLoading": "Loading database documents…",
+  "library.documentsFailed": "Could not load documents. Please try again later."
 }

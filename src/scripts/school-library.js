@@ -9,7 +9,8 @@ async function request(path,body){
   const data=await response.json();if(!response.ok)throw Object.assign(Error(data.error||'Request failed'),{status:response.status});return data;
 }
 function status(text=''){el('library-status').textContent=text;}
-async function perform(fn){if(busy)return;busy=true;status(t('library.loading'));try{await fn();status();}catch(error){status(uiError(error));if([401,403].includes(error.status)){el('library-content').hidden=true;el('library-gate').hidden=false;}}finally{busy=false;}}
+let loadingKey='library.loading';
+async function perform(fn,key='library.loading'){if(busy)return;busy=true;loadingKey=key;status(t(loadingKey));try{await fn();status();}catch(error){status(uiError(error));if([401,403].includes(error.status)){el('library-content').hidden=true;el('library-gate').hidden=false;}}finally{busy=false;}}
 function categoryName(id){return (getLocale()==='en'?categories.find(c=>c.id===id)?.en:categories.find(c=>c.id===id)?.zh)||categories.find(c=>c.id===id)?.en||id;}
 function tags(words){const box=document.createElement('div');box.className='library-tags';for(const word of words||[]){const tag=document.createElement('span');tag.className='tag-badge';tag.textContent=word==='教職員'?t('account.staff'):word==='學生'?t('account.student'):word;box.append(tag);}return box;}
 function render(){
@@ -56,7 +57,7 @@ async function access(){
   el('library-gate').hidden=true;el('library-content').hidden=false;render();
   const selected=new URLSearchParams(location.search).get('file');if(selected)await openFile(selected);
 }
-void perform(access);
+void perform(access,'library.documentsLoading');
 
 let observedProfile='',accountRefresh=0;
 async function refreshAccountFiles(){
@@ -73,4 +74,4 @@ document.addEventListener('wikinb:auth-change',event=>{
 });
 window.addEventListener('kcis:account-updated',event=>{if(event.detail?.user)event.detail.waitUntil?.(refreshAccountFiles());});
 
-document.addEventListener('wikinb:locale-change',()=>{render();if(current){el('library-reader-keywords').replaceChildren(...tags(current.keywords).children);if(!current.markdown)el('library-markdown').textContent=t('document.noMarkdown');}if(busy)status(t('library.loading'));});
+document.addEventListener('wikinb:locale-change',()=>{render();if(current){el('library-reader-keywords').replaceChildren(...tags(current.keywords).children);if(!current.markdown)el('library-markdown').textContent=t('document.noMarkdown');}if(busy)status(t(loadingKey));});
