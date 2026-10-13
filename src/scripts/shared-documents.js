@@ -10,3 +10,10 @@ export async function downloadSchoolDocument(id,filename,converted=false){
   if(!response.ok)throw Error('Download failed');
   const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download=converted?filename.replace(/\.[^.]+$/,'.md'):filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
+
+export function resolveDocumentAssets(root){
+  root.querySelectorAll('a[href],img[src]').forEach(node=>{
+    const attribute=node.tagName==='IMG'?'src':'href',value=node.getAttribute(attribute);
+    if(value?.startsWith('/api/library/'))node.setAttribute(attribute,getAuthUrl()+value);
+  });
+}

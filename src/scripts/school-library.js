@@ -1,8 +1,11 @@
 import {getAuthUrl, fetchMe, isTeacherUser} from './auth-client.js';
 import {markdownToHtml} from './md-render.js';
+import {createReaderControls,bindReaderCopy} from './reader-controls.js';
 import {t,getLocale,uiError} from './i18n.js';
 const el=id=>document.getElementById(id), mine=el('school-library').dataset.mine==='true';
+const readerControls=createReaderControls(el('library-reader'),el('library-maximize'));
 let categories=[],files=[],role='',category='',current=null,busy=false;
+bindReaderCopy(el('library-copy'), () => pageBase+'note?'+new URLSearchParams({file:current.id}));
 const base=getAuthUrl(), pageBase=document.documentElement.dataset.base;
 async function request(path,body){
   const response=await fetch(base+'/api/library'+path,{method:body===undefined?'GET':'POST',credentials:'include',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(path==='/chat'?240000:30000)});
@@ -40,8 +43,7 @@ async function download(converted=false){
   if(!response.ok)throw Error('Download failed');
   const url=URL.createObjectURL(await response.blob()),anchor=document.createElement('a');anchor.href=url;anchor.download=converted?current.filename.replace(/\.[^.]+$/,'.md'):current.filename;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
-el('library-close').onclick=()=>{el('library-reader').hidden=true;el('library-files').hidden=false;current=null;};
-el('library-download').onclick=()=>void perform(()=>download());
+el('library-close').onclick=()=>{readerControls.restore();el('library-reader').hidden=true;el('library-files').hidden=false;current=null;};
 el('library-markdown-download').onclick=()=>void perform(()=>download(true));
 document.querySelectorAll('[data-role]').forEach(button=>button.onclick=()=>{role=button.dataset.role;document.querySelectorAll('[data-role]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));render();});
 el('library-query').oninput=render;
@@ -69,7 +71,7 @@ async function refreshAccountFiles(){
 document.addEventListener('wikinb:auth-change',event=>{
  const session=event.detail||{},key=session.loggedIn?[session.user.email,session.user.nickname,session.user.department].join('|'):'';
  if(key===observedProfile)return;observedProfile=key;
- if(!session.loggedIn){accountRefresh++;files=[];current=null;el('library-content').hidden=true;el('library-gate').hidden=false;return;}
+ if(!session.loggedIn){readerControls.restore();el('library-markdown').replaceChildren();accountRefresh++;files=[];current=null;el('library-content').hidden=true;el('library-gate').hidden=false;return;}
  if(!files.length&&busy)return;void refreshAccountFiles();
 });
 window.addEventListener('kcis:account-updated',event=>{if(event.detail?.user)event.detail.waitUntil?.(refreshAccountFiles());});

@@ -447,5 +447,13 @@
   "upload.intro": "MD (Markdown) is a common plain-text format that keeps headings, lists, and tables organized. AI can help turn your existing materials into MD.",
   "upload.guide": "Upload your own files to Kuse × 康軒, then paste this prompt. Download the .md files it creates and return here to upload them.",
   "library.documentsLoading": "Loading database documents…",
-  "library.documentsFailed": "Could not load documents. Please try again later."
+  "library.documentsFailed": "Could not load documents. Please try again later.",
+  "reader.maximize": "Expand reader",
+  "reader.restore": "Restore reader",
+  "reader.retry": "Retry",
+  "reader.loading": "Loading document…",
+  "reader.failed": "Could not load this document.",
+  "search.folderCount": "{n} documents",
+  "reader.copy": "Copy link",
+  "reader.copyFailed": "Could not copy link"
 }

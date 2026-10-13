@@ -116,7 +116,17 @@ export function markdownToHtml(markdown, { base = '/WikiNB-KCIS/', linkifyWiki =
   const withMath = renderMathInMarkdown(stripped);
   let html = String(marked.parse(withMath, { async: false }));
   if (linkifyWiki) html = linkifyWikiLinks(html, base);
-  return DOMPurify.sanitize(html, { ADD_ATTR: ['loading'] });
+  const template = document.createElement('template');
+  template.innerHTML = DOMPurify.sanitize(html, { ADD_ATTR: ['loading'] });
+  const used = new Map();
+  template.content.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(heading => {
+    if (heading.id) return;
+    const slug = heading.textContent.trim().toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, '').replace(/\s+/g, '-') || 'section';
+    const count = used.get(slug) || 0;
+    used.set(slug, count + 1);
+    heading.id = slug + (count ? '-' + count : '');
+  });
+  return template.innerHTML;
 }
 
 export function notePageHref({ teacherId, subjectId, slug, base }) {

@@ -445,5 +445,13 @@
   "upload.intro": "MD（Markdown）是一種常用的純文字格式，可以保留標題、清單和表格的結構。你可以透過 AI，把既有資料整理成 MD。",
   "upload.guide": "先到 Kuse × 康軒上傳你自己的文件，再貼上這段提示詞。下載產生的 .md 檔後，回到這裡上傳。",
   "library.documentsLoading": "正在載入資料庫文件…",
-  "library.documentsFailed": "無法載入文件，請稍後再試。"
+  "library.documentsFailed": "無法載入文件，請稍後再試。",
+  "reader.maximize": "放大閱讀",
+  "reader.restore": "還原閱讀",
+  "reader.retry": "重試",
+  "reader.loading": "正在載入文件…",
+  "reader.failed": "無法載入這份文件。",
+  "search.folderCount": "{n} 篇文件",
+  "reader.copy": "複製連結",
+  "reader.copyFailed": "無法複製連結"
 }

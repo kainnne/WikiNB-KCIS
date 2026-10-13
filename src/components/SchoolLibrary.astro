@@ -19,8 +19,8 @@ const base=import.meta.env.BASE_URL;
         <article id="library-reader" class="kc-card" hidden>
           <button id="library-close" type="button" class="kc-btn-ghost" data-i18n="library.back">Back to list</button>
           <h2 id="library-reader-title"></h2><div id="library-reader-keywords" class="library-tags"></div>
-          <div class="library-reader-actions"><button id="library-download" class="kc-btn-ghost" type="button" data-i18n="document.original">Download original</button><button id="library-markdown-download" class="kc-btn-ghost" type="button" hidden data-i18n="document.markdown">Download Markdown</button></div>
-          <div id="library-markdown" class="wiki-content"></div>
+          <div class="library-reader-actions"><button id="library-copy" type="button" class="wiki-fs-btn wiki-copy-btn" data-i18n-aria="reader.copy" aria-label="Copy link"><span class="wiki-copy-label">copy</span></button><button id="library-maximize" type="button" class="wiki-fs-btn" aria-label="Expand reader"><span class="wiki-fs-icon" aria-hidden="true">⛶</span></button><button id="library-markdown-download" class="kc-btn-ghost" type="button" hidden data-i18n="document.markdown">Download Markdown</button></div>
+          <div id="library-markdown" class="wiki-content wiki-reader-body"></div>
         </article>
         {mine&&<section id="legacy-notes" hidden><h2 data-i18n="library.earlier">Earlier notes</h2><div id="legacy-notes-list" class="library-files"></div></section>}
       </div>
