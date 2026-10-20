@@ -7,7 +7,7 @@
   "observability": { "enabled": false },
   "vars": {
     "FRONTEND_ORIGINS": "https://ai-tools.kcis.kainnne.com,https://wikinb.kcis.kainnne.com",
-    "ALLOWED_EMAIL_DOMAINS": "kcis.com.tw,kcis.ntpc.edu.tw",
+    "ALLOWED_EMAIL_DOMAINS": "kcis.com.tw,kcis.ntpc.edu.tw,knsh.com.tw",
     "EXTRA_ALLOWED_EMAILS": "chaos60649@gmail.com,st101031616@gmail.com",
     "LLM_MODEL": "gemini-3.1-flash-lite",
     "SMTP_HOST": "smtp.gmail.com",

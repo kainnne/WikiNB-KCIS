@@ -26,7 +26,7 @@
 
 ## 權限、文件與備份
 
-- 校內核准網域登入；另保留兩個指定測試信箱，可把 EXTRA_ALLOWED_EMAILS 設為空字串停用。唯一管理員為 kainnne@kcis.com.tw。學生以 s/j 加五位數字前綴識別，既有核准角色保留。
+- 核准登入網域為 `kcis.ntpc.edu.tw`、`kcis.com.tw`、`knsh.com.tw`，寄碼與驗證登入共用相同核准規則；另保留兩個指定測試信箱，可把 EXTRA_ALLOWED_EMAILS 設為空字串停用。唯一管理員為 kainnne@kcis.com.tw。學生以 s/j 加五位數字前綴識別，既有核准角色保留。
 - 信箱驗證碼十分鐘、最多五次嘗試，一次使用；不回傳或記錄驗證碼。Cookie 為 HttpOnly / Secure，D1 session 可撤銷。論壇短效 token 最多仍有效十五分鐘。
 - 教師只上傳 UTF-8 MD，每檔 1 MB；學生只能閱讀。PDF、DOCX、TXT 不接受，轉檔目前不開放。姓名與部門由登入身分寫入 keywords，不採用文件宣稱的作者。
 - 全校已驗證使用者可讀共享文章；My documents 只列本人上傳。匿名不能讀文件、搜尋或問 AI。原本個人 WikiNB 不受影響。

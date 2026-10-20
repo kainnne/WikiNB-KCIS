@@ -1,7 +1,9 @@
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import {
   allowedEmail,
+  canonical,
   roleFor,
   checkProfile,
   signToken,
@@ -16,6 +18,20 @@ test("school domains and the two approved test accounts only", () => {
   assert(!allowedEmail("other@gmail.com", {}));
   assert(!allowedEmail("teacher@kcis.com.tw.attacker.test", {}));
   assert(!allowedEmail("bad\n@kcis.com.tw", {}));
+});
+test("all approved domains pass both deployed and fallback email gates", () => {
+  const { vars } = JSON.parse(readFileSync(new URL("../wrangler.json", import.meta.url), "utf8"));
+  for (const env of [{}, vars]) {
+    for (const domain of ["kcis.ntpc.edu.tw", "kcis.com.tw", "knsh.com.tw"]) {
+      // send-code and login-with-code both canonicalize before this shared gate.
+      assert(allowedEmail(canonical(`  Synthetic@${domain.toUpperCase()}  `), env));
+      assert(!allowedEmail(`synthetic@${domain}.attacker.test`, env));
+      assert(!allowedEmail(`synthetic@sub.${domain}`, env));
+      assert(!allowedEmail(`synthetic@fake${domain}`, env));
+    }
+    assert(!allowedEmail("synthetic@gmail.com", env));
+    assert(!allowedEmail("synthetic@@knsh.com.tw", env));
+  }
 });
 test("five-digit student prefixes and sole administrator", () => {
   assert.equal(roleFor("s12345@kcis.com.tw"), "student");

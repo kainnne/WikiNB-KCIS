@@ -9,7 +9,7 @@ export function allowedEmail(email, env) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254)
     return false;
   return (
-    (env.ALLOWED_EMAIL_DOMAINS || "kcis.com.tw,kcis.ntpc.edu.tw")
+    (env.ALLOWED_EMAIL_DOMAINS || "kcis.com.tw,kcis.ntpc.edu.tw,knsh.com.tw")
       .split(",")
       .includes(email.split("@")[1]) ||
     (env.EXTRA_ALLOWED_EMAILS ?? "chaos60649@gmail.com,st101031616@gmail.com")
