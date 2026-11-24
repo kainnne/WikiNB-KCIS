@@ -1,5 +1,6 @@
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import {
   allowedEmail,
@@ -141,24 +142,17 @@ test("conversion is disabled server-side, and students cannot upload", async () 
   assert.equal(classify("教學教材.md", ""), "academic");
 });
 
-test("MD upload stores originals and trusted account keywords; rejects empty and invalid UTF-8", async () => {
-  const teacher = {
-    email: "synthetic@kcis.com.tw",
-    role: "teacher",
-    nickname: "測試_同仁",
-    department: "資源中心",
-  };
-  await assert.rejects(
-    uploadDocument({}, teacher, { filename: "empty.md", contentBase64: "" }),
-    (e) => e.status === 400,
-  );
-  await assert.rejects(
-    uploadDocument({}, teacher, {
-      filename: "binary.md",
-      contentBase64: "/w==",
-    }),
-    (e) => e.status === 400,
-  );
+const teacher = {
+  email: "synthetic@kcis.com.tw",
+  role: "teacher",
+  nickname: "測試_同仁",
+  department: "資源中心",
+};
+
+async function uploadFixture(t) {
+  const db = new DatabaseSync(":memory:");
+  t.after(() => db.close());
+  db.exec(readFileSync(new URL("../migrations/0001_school.sql", import.meta.url), "utf8"));
   const key = await crypto.subtle.generateKey(
     {
       name: "RSASSA-PKCS1-v1_5",
@@ -172,9 +166,7 @@ test("MD upload stores originals and trusted account keywords; rejects empty and
   const encoded = Buffer.from(
     await crypto.subtle.exportKey("pkcs8", key.privateKey),
   ).toString("base64");
-  const saved = [],
-    bound = [],
-    previousFetch = globalThis.fetch;
+  const saved = [];
   const env = {
     GOOGLE_DRIVE_FOLDER_ID: "synthetic-root",
     GOOGLE_SERVICE_ACCOUNT_JSON: JSON.stringify({
@@ -186,51 +178,130 @@ test("MD upload stores originals and trusted account keywords; rejects empty and
     }),
     DB: {
       prepare: (sql) => ({
-        bind: (...values) => {
-          bound.push({ sql, values });
-          return { sql, values };
-        },
+        bind: (...values) => ({
+          first: async () => db.prepare(sql).get(...values),
+          run: () => db.prepare(sql).run(...values),
+        }),
       }),
-      batch: async () => [],
+      async batch(statements) {
+        db.exec("BEGIN");
+        try {
+          const results = statements.map((statement) => statement.run());
+          db.exec("COMMIT");
+          return results;
+        } catch (error) {
+          db.exec("ROLLBACK");
+          throw error;
+        }
+      },
     },
   };
-  globalThis.fetch = async (url, options = {}) => {
-    if (String(url) === "https://oauth2.googleapis.com/token")
+  t.mock.method(globalThis, "fetch", async (url, options = {}) => {
+    if (url === "https://oauth2.googleapis.com/token")
       return Response.json({
         access_token: "synthetic-token",
         expires_in: 3600,
       });
-    if (String(url).startsWith("https://www.googleapis.com/drive/v3/files?"))
+    if (url.startsWith("https://www.googleapis.com/drive/v3/files?"))
       return Response.json({ files: [{ id: "synthetic-folder" }] });
-    assert(
-      String(url).startsWith(
-        "https://www.googleapis.com/upload/drive/v3/files?",
-      ),
-    );
-    saved.push(await options.body.text());
-    return Response.json({ id: "synthetic-file-" + saved.length });
+    const {origin, pathname} = new URL(url);
+    assert.equal(origin, "https://www.googleapis.com");
+    assert.match(pathname, /^\/upload\/drive\/v3\/files(?:\/[^/]+)?$/);
+    const id = options.method === "PATCH"
+      ? pathname.split("/").at(-1)
+      : "synthetic-file-" + (saved.length + 1);
+    saved.push({ id, method: options.method, body: await options.body.text() });
+    return Response.json({ id });
+  });
+  return { db, saved, env };
+}
+
+function uploadMarkdown(env, owner, filename, text, keywords) {
+  return uploadDocument(env, owner, {
+    filename, contentBase64: Buffer.from(text).toString("base64"), keywords,
+  });
+}
+
+test("MD upload stores the original, trusted account keywords and series frontmatter", async (t) => {
+  await assert.rejects(
+    uploadDocument({}, teacher, { filename: "empty.md", contentBase64: "" }),
+    (e) => e.status === 400,
+  );
+  await assert.rejects(
+    uploadDocument({}, teacher, { filename: "binary.md", contentBase64: "/w==" }),
+    (e) => e.status === 400,
+  );
+  const { db, saved, env } = await uploadFixture(t);
+  const fields = {
+    title: "登山總覽", series: "登山校外教學", series_id: "hiking-trip",
+    unit: 0, parent: "00-overview", example: false,
   };
-  try {
-    const text =
-      '---\nteacher: "冒用作者"\ndepartment: "冒用部門"\nkeywords:\n  - "冒用關鍵字"\n---\n# 中文內容\n\nKeep this body.';
-    const result = await uploadDocument(env, teacher, {
-      filename: "material.md",
-      contentBase64: Buffer.from(text).toString("base64"),
-      keywords: ["AI"],
-    });
-    assert.equal(result.readable, true);
-    assert.equal(saved.length, 2);
-    assert(saved[0].includes(text));
-    const record = bound.find((item) =>
-      item.sql.startsWith("INSERT INTO documents"),
-    ).values;
-    assert.equal(record[2], teacher.email);
-    const metadata = JSON.parse(record[6]);
-    assert.deepEqual(metadata.keywords, ["測試_同仁", "資源中心", "AI"]);
-    assert(record[7].includes("Keep this body."));
-    assert(!record[7].includes("冒用作者"));
-    assert(!record[7].includes("冒用關鍵字"));
-  } finally {
-    globalThis.fetch = previousFetch;
-  }
+  const header = Object.entries(fields).map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join("\n");
+  const text = `---\n${header}\nteacher: "冒用作者"\ndepartment: "冒用部門"\nkeywords:\n  - "冒用關鍵字"\n---\n# 中文內容\n\nKeep this body.`;
+  const result = await uploadMarkdown(env, teacher, "material.md", text, ["AI"]);
+  assert.equal(result.readable, true);
+  assert.equal(saved.length, 2);
+  assert(saved[0].body.includes(text));
+  const record = db.prepare("SELECT * FROM documents").get();
+  assert.equal(record.owner_email, teacher.email);
+  const metadata = JSON.parse(record.metadata);
+  for (const [key, value] of Object.entries(fields)) assert.equal(metadata[key], value, key);
+  assert.deepEqual(metadata.keywords, ["測試_同仁", "資源中心", "AI"]);
+  assert(record.markdown.includes("Keep this body."));
+  assert(!record.markdown.includes("冒用作者"));
+  assert(!record.markdown.includes("冒用關鍵字"));
+});
+
+test("re-upload by the same account replaces one live document and archives the previous version", async (t) => {
+  const { db, saved, env } = await uploadFixture(t);
+  const liveDocuments = db.prepare("SELECT * FROM documents WHERE deleted_at IS NULL");
+  const first = await uploadMarkdown(env, teacher, "material.md", "First version");
+  const before = liveDocuments.get();
+  const second = await uploadMarkdown(env, {...teacher, nickname: "新名稱"}, "material.md", "Second version");
+  const [after, ...others] = liveDocuments.all();
+  assert.equal(others.length, 0);
+  assert.equal(after.id, first.id);
+  assert.equal(second.id, first.id);
+  assert.equal(after.version, 2);
+  assert.equal(JSON.parse(after.metadata).createdAt, JSON.parse(before.metadata).createdAt);
+  assert.match(after.markdown, /Second version/);
+  assert.equal(after.original_drive_id, before.original_drive_id);
+  assert.equal(after.markdown_drive_id, before.markdown_drive_id);
+  assert.deepEqual(saved.slice(2).filter((write) => write.method === "PATCH").map((write) => write.id), [
+    before.original_drive_id, before.markdown_drive_id,
+  ]);
+  const revisions = db.prepare("SELECT * FROM revisions WHERE document_id=?").all(first.id);
+  assert.equal(revisions.length, 1);
+  assert.equal(revisions[0].metadata, before.metadata);
+  assert.equal(revisions[0].markdown, before.markdown);
+  const archive = saved.find((file) => file.id === revisions[0].drive_id);
+  assert.equal(archive.method, "POST");
+  assert(archive.body.includes(first.id + ".v1.md"));
+  assert(archive.body.includes(before.markdown));
+});
+
+test("uploads with a different owner or filename create separate documents", async (t) => {
+  const { db, env } = await uploadFixture(t);
+  const otherTeacher = {...teacher, email: "other-synthetic@kcis.com.tw"};
+  const first = await uploadMarkdown(env, teacher, "material.md", "First document");
+  const second = await uploadMarkdown(env, otherTeacher, "material.md", "Another account");
+  const third = await uploadMarkdown(env, teacher, "Material.md", "Different filename");
+  const rows = db.prepare("SELECT id, version FROM documents WHERE deleted_at IS NULL").all();
+  assert.equal(new Set([first.id, second.id, third.id]).size, 3);
+  assert.deepEqual(new Set(rows.map((row) => row.id)), new Set([first.id, second.id, third.id]));
+  assert(rows.every((row) => row.version === 1));
+  assert.equal(db.prepare("SELECT count(*) AS count FROM revisions").get().count, 0);
+});
+
+test("re-upload leaves deleted uploads and curriculum with the same owner and filename alone", async (t) => {
+  const { db, env } = await uploadFixture(t);
+  const filename = "material.md";
+  const deleted = await uploadMarkdown(env, teacher, filename, "Deleted upload");
+  db.prepare("UPDATE documents SET deleted_at=? WHERE id=?").run("2026-10-01", deleted.id);
+  const curriculum = await uploadMarkdown(env, teacher, filename, "Curriculum import");
+  db.prepare("UPDATE documents SET metadata=json_set(metadata,'$.source','curriculum') WHERE id=?").run(curriculum.id);
+  const fresh = await uploadMarkdown(env, teacher, filename, "New upload");
+  assert.equal(new Set([deleted.id, curriculum.id, fresh.id]).size, 3);
+  assert.equal(db.prepare("SELECT count(*) AS count FROM documents").get().count, 3);
+  assert.equal(db.prepare("SELECT count(*) AS count FROM revisions").get().count, 0);
 });

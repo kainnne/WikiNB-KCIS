@@ -7,6 +7,7 @@ import {
   signToken,
 } from "./security.mjs";
 import { documentFolder, writeDrive, drive } from "./drive.mjs";
+import { articleFrontmatter } from "../../auth/lib/library-series.mjs";
 export const CATEGORIES = [
   { id: "academic", zh: "學科知識", en: "Academic knowledge" },
   { id: "extracurricular", zh: "課外知識", en: "Extracurricular knowledge" },
@@ -221,15 +222,34 @@ export async function uploadDocument(env, user, input) {
     throw Object.assign(Error("Use up to 12 keywords of 40 characters each."), {
       status: 400,
     });
-  const accountKeywords = [user.nickname, user.department],
+  const ownerSubject = await hash("account:" + user.email),
+    existing = await env.DB.prepare(
+      `SELECT * FROM documents
+       WHERE owner_subject=? AND deleted_at IS NULL
+         AND json_extract(metadata,'$.source')='upload'
+         AND json_extract(metadata,'$.filename')=?
+       ORDER BY json_extract(metadata,'$.updatedAt') DESC, id
+       LIMIT 1`,
+    )
+      .bind(ownerSubject, filename)
+      .first(),
+    previous = existing ? JSON.parse(existing.metadata) : null,
+    fields = articleFrontmatter(text),
+    accountKeywords = [user.nickname, user.department],
     meta = {
-      id: crypto.randomUUID(),
+      id: existing?.id || crypto.randomUUID(),
       role: "teachers",
       category: classify(filename, text),
       filename,
-      title: filename,
+      title: typeof fields.title === "string" ? fields.title : filename,
+      series: typeof fields.series === "string" ? fields.series : undefined,
+      series_id:
+        typeof fields.series_id === "string" ? fields.series_id : undefined,
+      unit: Number.isInteger(fields.unit) ? fields.unit : undefined,
+      parent: typeof fields.parent === "string" ? fields.parent : undefined,
+      example: typeof fields.example === "boolean" ? fields.example : undefined,
       ownerEmail: user.email,
-      ownerSubject: await hash("account:" + user.email),
+      ownerSubject,
       accountKeywords,
       department: user.department,
       uploader: user.nickname,
@@ -240,7 +260,8 @@ export async function uploadDocument(env, user, input) {
         ]),
       ],
       source: "upload",
-      createdAt: now(),
+      sourceVersion: (existing?.version ?? 0) + 1,
+      createdAt: previous?.createdAt || now(),
       updatedAt: now(),
       size: bytes.length,
       readable: true,
@@ -249,7 +270,9 @@ export async function uploadDocument(env, user, input) {
       preview: text.slice(0, 400),
       deletedAt: null,
     };
-  return saveDocument(env, meta, profileMarkdown(text, meta), bytes);
+  return saveDocument(env, meta, profileMarkdown(text, meta), bytes, {
+    existing,
+  });
 }
 export async function ingest(env, input, kind) {
   const isArticle = kind === "article",

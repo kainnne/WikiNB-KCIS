@@ -58,14 +58,31 @@ test('a single matching chapter supplies its whole ordered series and disclosure
   assert.ok(!context.some(source => source.scope === 'kcis_tools'));
 });
 
+test('staff uploads supply a series outline from saved metadata and older Markdown headers', async t => {
+  const schedule = row('schedule', {source:'upload'},
+    '---\nseries_id: "hiking-trip"\nunit: 1\nexample: true\n---\nMeet at 7:30.');
+  const overview = row('hiking-intro', {
+    source:'upload', series_id:'hiking-trip', series:'Hiking trip', unit:0, title:'Trip overview',
+  });
+  const {context, system} = await capture(t, 'Meet', [schedule, overview]);
+  assert.equal(context[0].seriesId, 'hiking-trip');
+  assert.equal(context[0].example, true);
+  assert.deepEqual(context.filter(source => source.scope === 'series_outline'), [{
+    scope:'series_outline', series:'Hiking trip', seriesId:'hiking-trip', example:true,
+    units:[{id:'hiking-intro',unit:0,title:'Trip overview'}, {id:'schedule',unit:1,title:'schedule'}],
+  }]);
+  assert.match(system, /fictional teaching demo, not an official school notice/);
+});
+
 test('a forum overview containing recommendation wording keeps its exclusive scope', async t => {
   const {context} = await capture(t, '目前 AI 論壇推薦哪些工具？', [course, chapter, forum]);
   assert.equal(context.scope, 'forum_only');
   assert.deepEqual(context.documents.map(item => item.id), ['forum-post']);
 });
 
-test('authored lesson recommendations exclude nested series and retain the original scope', async t => {
-  const {context} = await capture(t, '推薦朱璽的課程筆記', [chapter, course, intro, forum]);
+test('authored lesson recommendations exclude nested series and uploads with the authored series ID', async t => {
+  const uploadedCourse = row('course-upload', {source:'upload', series_id:'ai-intro-course'}, 'Staff upload.');
+  const {context} = await capture(t, '推薦朱璽的課程筆記', [chapter, course, intro, forum, uploadedCourse]);
   assert.equal(context.scope, 'authored_lessons');
   assert.deepEqual(context.syllabus.map(item => item.id), ['unit-one']);
   assert.deepEqual(context.unitNotes.map(item => item.id), ['unit-one']);

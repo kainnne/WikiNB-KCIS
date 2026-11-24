@@ -53,8 +53,10 @@ export async function chatAnswer(env, input, role) {
     sources = new Map();
   const documents = rows.map(row => {
     const doc = {...publicDocument(row), id: row.id};
-    // Earlier curriculum imports may have stored series fields only in Markdown.
-    if (doc.source === "curriculum" && !doc.seriesId) {
+    // Older imports and uploads may have series fields only in Markdown.
+    if (
+      (doc.source === "curriculum" || doc.source === "upload") && !doc.seriesId
+    ) {
       const fields = articleFrontmatter(row.markdown);
       if (typeof fields.series_id === "string") {
         doc.seriesId = fields.series_id;
