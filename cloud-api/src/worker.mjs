@@ -23,6 +23,7 @@ import {
   syncProfiles,
 } from "./library.mjs";
 import { chatAnswer } from "./chat.mjs";
+import { adminPage, alert, guardAfter, guardCheck } from "./ai-guard.mjs";
 const cookieName = "wikinb_kcis_session",
   days = 7 * 86400;
 const fail = (status, message) => {
@@ -313,6 +314,14 @@ export default {
       const url = new URL(request.url),
         path = url.pathname,
         method = request.method;
+      if (path === "/admin/ai") return await adminPage(request, env);
+      // other KCIS AI services (e.g. the AI-901 assistant) report trips here so one mail reaches the admin
+      if (path === "/api/internal/ai-alert" && method === "POST") {
+        if (!env.AI_ALERT_KEY || request.headers.get("X-Alert-Key") !== env.AI_ALERT_KEY) return new Response("forbidden", { status: 403 });
+        const b = await request.json().catch(() => ({}));
+        await alert(env, String(b.key || "external").slice(0, 60), String(b.subject || "AI 警示").slice(0, 120), String(b.text || "").slice(0, 2000));
+        return new Response(null, { status: 204 });
+      }
       if (path === "/api/health" && method === "GET") {
         await env.DB.prepare("SELECT 1 FROM users LIMIT 1").first();
         return json({
@@ -546,7 +555,7 @@ export default {
           path === "/api/library/chat" ||
           url.searchParams.get("stream") !== "1"
         )
-          return json(await chatAnswer(env, body, user.role));
+          return json(await chatAnswer(env, body, user.role, user));
         const stream = new ReadableStream({
           start(controller) {
             const encoder = new TextEncoder(),
@@ -555,7 +564,7 @@ export default {
                   encoder.encode("data: " + JSON.stringify(value) + "\n\n"),
                 );
             send({ type: "start", provider: "gemini", model: env.LLM_MODEL });
-            const task = chatAnswer(env, body, user.role)
+            const task = chatAnswer(env, body, user.role, user)
               .then((answer) => {
                 send({ type: "delta", text: answer.answer });
                 send({ type: "done", ...answer });

@@ -1,6 +1,9 @@
 import { connect } from "cloudflare:sockets";
 import { Buffer } from "node:buffer";
-export async function sendCodeEmail(env, email, code) {
+export function sendCodeEmail(env, email, code) {
+  return sendMail(env, email, "KCIS AI 登入驗證碼", "KCIS AI 登入驗證碼：" + code + "\n\n驗證碼於 10 分鐘後失效。若非本人操作，請忽略此郵件。");
+}
+export async function sendMail(env, email, subjectText, text) {
   const socket = connect(
       { hostname: env.SMTP_HOST || "smtp.gmail.com", port: 465 },
       { secureTransport: "on" },
@@ -54,12 +57,8 @@ export async function sendCodeEmail(env, email, code) {
     await command("DATA", [354]);
     const subject =
         "=?UTF-8?B?" +
-        Buffer.from("KCIS AI 登入驗證碼").toString("base64") +
+        Buffer.from(subjectText).toString("base64") +
         "?=",
-      text =
-        "KCIS AI 登入驗證碼：" +
-        code +
-        "\n\n驗證碼於 10 分鐘後失效。若非本人操作，請忽略此郵件。",
       body = Buffer.from(text)
         .toString("base64")
         .match(/.{1,76}/g)
