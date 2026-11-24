@@ -30,6 +30,11 @@ const base = import.meta.env.BASE_URL;
       </div>
     </dialog>
 
+    <div id="codex-loading" class="kc-card codex-loading hidden p-8" role="status">
+      <span class="codex-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span id="codex-loading-label" class="sr-only">Connecting…</span>
+    </div>
+
     <div id="codex-gate" class="kc-card hidden p-8 text-center">
       <p class="text-kc-muted">
         <span data-i18n="gemini.gate">Please sign in to use KCIS AI.</span>
@@ -81,10 +86,14 @@ const base = import.meta.env.BASE_URL;
     fetchMe,
     codexChatStream,
     fetchCodexModels,
+    hasSessionHint,
     stopCodex,
   } from '../scripts/auth-client.js';
-  import { markdownToHtml } from '../scripts/md-render.js';
+  // The Markdown renderer (KaTeX, marked) is large and only needed for AI replies; load it without delaying the page.
+  let markdownToHtml=null;
+  const markdownReady=import('../scripts/md-render.js').then(module=>{markdownToHtml=module.markdownToHtml;});
 
+  const loading = document.getElementById('codex-loading');
   const gate = document.getElementById('codex-gate');
   const offline = document.getElementById('codex-offline');
   const terminal = document.getElementById('codex-terminal');
@@ -117,6 +126,7 @@ const base = import.meta.env.BASE_URL;
     for(const [button,key] of [[sendBtn,'gemini.send'],[stopBtn,'gemini.stop']]){button.setAttribute('aria-label',t(key));button.title=t(key);}
     document.getElementById('learning-prompts-reset').setAttribute('aria-label',responseLanguage==='en'?'Refresh options':'更新選項');
     document.getElementById('ai-language-current').textContent=responseLanguage==='en'?'EN':'中文';
+    document.getElementById('codex-loading-label').textContent=chatMessage('connecting',responseLanguage);
     resetLearningPrompts();
     updateExpandControl();
   }
@@ -132,7 +142,7 @@ const base = import.meta.env.BASE_URL;
   function resetLearningPrompts(){
     const container=document.getElementById('learning-prompts-list');if(!container)return;
     const pair=pickLearningPrompts(selectedPrompts);selectedPrompts=pair.map(item=>item.id);container.replaceChildren();
-    for(const item of pair){const prompt=localizeLearningPrompt(item,responseLanguage||'en');const button=document.createElement('button');button.type='button';button.className='learning-prompt';button.setAttribute('aria-label',prompt.label);button.insertAdjacentHTML('afterbegin',learningPromptIcon(item.id));const label=document.createElement('span');label.textContent=prompt.label;button.append(label);button.onclick=()=>{if(running)return;input.value='';void sendMessage(prompt.text,null,prompt.question);};container.append(button);}
+    for(const item of pair){const prompt=localizeLearningPrompt(item,responseLanguage||'en');const button=document.createElement('button');button.type='button';button.className='learning-prompt';button.setAttribute('aria-label',prompt.label);button.insertAdjacentHTML('afterbegin',learningPromptIcon(item.id));const label=document.createElement('span');label.textContent=prompt.label;button.append(label);button.onclick=()=>{if(running||connecting)return;input.value='';void sendMessage(prompt.text,null,prompt.question);};container.append(button);}
   }
   document.getElementById('learning-prompts-reset')?.addEventListener('click',resetLearningPrompts);
   resetLearningPrompts();
@@ -153,12 +163,19 @@ const base = import.meta.env.BASE_URL;
     if (!bubble) return;
     if (role === 'assistant') {
       bubble.classList.add('codex-md', 'wiki-content');
+      bubble.dataset.text = String(text ?? '');
+      if (!markdownToHtml) {
+        bubble.textContent = bubble.dataset.text;
+        void markdownReady.then(() => { if (bubble.dataset.text === String(text ?? '')) setBubbleText(bubble, text, role); });
+        return;
+      }
       bubble.innerHTML = markdownToHtml(String(text ?? ''), {
         base: pageBase(),
         linkifyWiki: true,
       });
     } else {
       bubble.classList.remove('codex-md', 'wiki-content');
+      delete bubble.dataset.text;
       bubble.textContent = text;
     }
   }
@@ -203,7 +220,7 @@ const base = import.meta.env.BASE_URL;
 
   function setRunning(isRunning) {
     running = isRunning;
-    if (sendBtn) sendBtn.disabled = isRunning;
+    if (sendBtn) sendBtn.disabled = isRunning || connecting;
     document.getElementById('ai-language-change').disabled=isRunning;
     document.querySelectorAll('.learning-prompts button').forEach(button=>button.disabled=isRunning);
     document.querySelectorAll('.codex-retry').forEach(button=>button.disabled=isRunning);
@@ -215,9 +232,9 @@ const base = import.meta.env.BASE_URL;
     input?.toggleAttribute('disabled', isRunning);
   }
 
-  async function loadModels(isCurrent=()=>true) {
+  async function loadModels(isCurrent=()=>true,request=null) {
     try {
-      const data = await fetchCodexModels();
+      const data = await (request||fetchCodexModels());
       if(!isCurrent())return;
       fixedModel = data.defaultModel || data.models?.[0]?.id || fixedModel;
       if (data.error) appendLine(uiError({message:data.error},t('gemini.connectFail')), 'error');
@@ -227,32 +244,70 @@ const base = import.meta.env.BASE_URL;
     }
   }
 
+  // Startup: the session, health and model requests run together, starting while the language dialog is still open.
+  const readyCacheKey='kcis-ai:ready';
+  function readReadyCache(){try{const value=JSON.parse(sessionStorage.getItem(readyCacheKey)||'null');return value&&Date.now()-value.at<30*60*1000?value:null;}catch{return null;}}
+  function writeReadyCache(){try{sessionStorage.setItem(readyCacheKey,JSON.stringify({model:fixedModel,at:Date.now()}));}catch{}}
+  function clearReadyCache(){try{sessionStorage.removeItem(readyCacheKey);}catch{}}
+  function startChecks(){
+    const me=fetchMe({timeoutMs:10000}).catch(()=>({authenticated:false,offline:true}));
+    const health=checkAuthHealth().catch(()=>({online:false}));
+    // The model list needs a session; ask for it up front only when this browser was signed in before.
+    const models=hasSessionHint()?fetchCodexModels().then(data=>({data}),error=>({error})):null;
+    return {me,health,models,at:Date.now()};
+  }
+  let prefetchedChecks=startChecks();
+  function takeChecks(){
+    const checks=prefetchedChecks&&Date.now()-prefetchedChecks.at<60000?prefetchedChecks:startChecks();
+    prefetchedChecks=null;return checks;
+  }
+
+  let connecting=false,chatReady=false;
+  function setConnecting(value){
+    connecting=value;terminal?.classList.toggle('is-connecting',value);terminal?.setAttribute('aria-busy',String(value));
+    if(sendBtn)sendBtn.disabled=value||running;
+  }
+  function showOnly(element){
+    for(const panel of [loading,gate,offline,terminal])panel?.classList.toggle('hidden',panel!==element);
+    if(element!==terminal)setConnecting(false);
+  }
+  function showGate(){chatReady=false;clearReadyCache();showOnly(gate);}
+  // Never leave a blank gap: show the chat at once when this browser has a session (sending waits for the checks),
+  // otherwise a quiet neutral card until we know whether to show the chat or the sign-in prompt.
+  function showStarting(){
+    if(chatReady)return;
+    const cached=readReadyCache(),offlineShown=!offline?.classList.contains('hidden');
+    if(hasSessionHint()&&!offlineShown){
+      showOnly(terminal);
+      if(cached){fixedModel=cached.model||fixedModel;setConnecting(false);}else setConnecting(true);
+    }else if(gate?.classList.contains('hidden'))showOnly(loading);
+  }
   function showOffline(){
-    gate?.classList.add('hidden');terminal?.classList.add('hidden');
+    chatReady=false;clearReadyCache();showOnly(offline);
     if(!offline)return;
     offline.replaceChildren(document.createTextNode(t('gemini.apiOffline')));
-    const retry=document.createElement('button');retry.type='button';retry.className='learning-prompt codex-retry';retry.textContent=chatMessage('retry',responseLanguage);retry.onclick=()=>void init(true);offline.append(retry);offline.classList.remove('hidden');
+    const retry=document.createElement('button');retry.type='button';retry.className='learning-prompt codex-retry';retry.textContent=chatMessage('retry',responseLanguage);retry.onclick=()=>void init(true);offline.append(retry);
   }
   const initialization=createChatInitialization(async({isCurrent})=>{
-    const me = await fetchMe({timeoutMs:10000}).catch(() => ({ authenticated: false,offline:true }));
+    const checks=takeChecks();
+    showStarting();
+    const me = await checks.me;
     if(!isCurrent())return false;
     if (!me.authenticated) {
       if(me.offline)showOffline();
-      else{offline?.classList.add('hidden');terminal?.classList.add('hidden');gate?.classList.remove('hidden');}
+      else showGate();
       return false;
     }
-    const health = await checkAuthHealth();
+    const health = await checks.health;
     if(!isCurrent())return false;
     if (!health.online) {
       showOffline();return false;
     }
-    gate?.classList.add('hidden');
-    offline?.classList.add('hidden');
-    terminal?.classList.remove('hidden');
-    await loadModels(isCurrent);
+    if(terminal?.classList.contains('hidden')){showOnly(terminal);if(!chatReady)setConnecting(true);}
+    await loadModels(isCurrent,checks.models?.then(result=>{if(result.error)throw result.error;return result.data;}));
     if(!isCurrent())return false;
-    if(responseLanguage)applyConversationLanguage();
-    input?.focus();
+    const wasReady=chatReady;chatReady=true;setConnecting(false);writeReadyCache();
+    if(!wasReady)input?.focus();
     return true;
   });
   async function init(recheck=false) {
@@ -354,12 +409,12 @@ const base = import.meta.env.BASE_URL;
     }
   }
   form?.addEventListener('submit',event=>{
-    event.preventDefault();if(running||!responseLanguage)return;
+    event.preventDefault();if(running||connecting||!responseLanguage)return;
     const message=input?.value?.trim();if(!message)return;input.value='';void sendMessage(message);
   });
 
   document.addEventListener('wikinb:auth-change', (event) => {
-    if (event.detail?.loggedIn) void init(true);else{initialization.invalidate();abortController?.abort();chatHistory=[];failedAttempt=null;setExpanded(false);offline?.classList.add('hidden');terminal?.classList.add('hidden');gate?.classList.remove('hidden');for(const line of [...output.children])if(line.id!=='codex-intro'&&line!==promptPanel)line.remove();output.append(promptPanel);promptPanel.hidden=false;}
+    if (event.detail?.loggedIn) void init(true);else{initialization.invalidate();prefetchedChecks=null;abortController?.abort();chatHistory=[];failedAttempt=null;setExpanded(false);showGate();for(const line of [...output.children])if(line.id!=='codex-intro'&&line!==promptPanel)line.remove();output.append(promptPanel);promptPanel.hidden=false;}
   });
   // Arriving from kcis.kainnne.com with ?lang= means the language is already chosen; otherwise ask once.
   const linkLanguage=new URLSearchParams(location.search).get('lang');

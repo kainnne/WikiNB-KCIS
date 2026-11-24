@@ -308,10 +308,17 @@ export async function checkAuthHealth() {
   };
 }
 
+// The header and a page often ask for the session at the same moment; share one request (each caller keeps its own timeout).
+let sharedSessionRequest = null;
+function requestSharedSession() {
+  sharedSessionRequest ||= authFetch('/api/auth/shared-session').finally(() => { sharedSessionRequest = null; });
+  return sharedSessionRequest;
+}
+
 export async function fetchMe(options = {}) {
   const timeoutMs = Number(options.timeoutMs ?? 4000);
   try {
-    const shared = await withTimeout(authFetch('/api/auth/shared-session'), timeoutMs, 'auth-me-timeout');
+    const shared = await withTimeout(requestSharedSession(), timeoutMs, 'auth-me-timeout');
     const data = { ...shared, authenticated: Boolean(shared.user) };
     try { if(data.authenticated)localStorage.setItem('wikinb_kcis_signed_in','1'); } catch {}
     if (!data?.authenticated) {

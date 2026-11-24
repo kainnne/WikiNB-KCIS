@@ -1,7 +1,16 @@
 /* KCIS AI: one glass chat surface that always fits the screen; the shared account navigation stays reachable. */
 .school-ai-page main{display:flex;flex-direction:column;height:100vh;height:100dvh;padding-top:96px;padding-bottom:16px}
 .codex-page{flex:1;display:flex;flex-direction:column;width:100%;max-width:960px;margin:0 auto;min-width:0;min-height:0}
-.codex-page>#codex-gate,.codex-page>#codex-offline{flex:none}
+.codex-page>#codex-gate,.codex-page>#codex-offline,.codex-page>#codex-loading{flex:none}
+/* Startup: a quiet neutral card, or a thin Kang Chiao purple line along the top of the chat while it connects. */
+.codex-loading:not(.hidden){display:flex;align-items:center;justify-content:center;min-height:88px}
+.codex-dots{display:inline-flex;gap:7px}.codex-dots i{width:6px;height:6px;border-radius:999px;background:var(--kcis);opacity:.25;animation:codex-dot 1.2s var(--ease) infinite}
+.codex-dots i:nth-child(2){animation-delay:.15s}.codex-dots i:nth-child(3){animation-delay:.3s}
+@keyframes codex-dot{0%,100%{opacity:.25;transform:none}40%{opacity:.85;transform:translateY(-2px)}}
+.codex-terminal{position:relative}
+.codex-terminal::before{content:'';position:absolute;z-index:1;top:0;left:32px;width:calc((100% - 64px)*.3);height:2px;border-radius:999px;background:linear-gradient(90deg,transparent,var(--kcis),transparent);opacity:0;pointer-events:none;transition:opacity .4s var(--ease)}
+.codex-terminal.is-connecting::before{opacity:.7;animation:codex-connect 1.4s var(--ease) infinite alternate}
+@keyframes codex-connect{from{transform:translateX(0)}to{transform:translateX(233.33%)}}
 .codex-page-title{font-family:Comfortaa,Nunito,'PingFang TC','Microsoft JhengHei','Noto Sans TC',sans-serif!important;font-weight:700!important;font-size:30px!important;line-height:1.2!important;letter-spacing:-.02em;color:var(--ink)!important}
 .codex-heading{flex:none;align-items:center}
 .codex-terminal{flex:1;min-height:300px;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--glass-edge);border-radius:32px;background:linear-gradient(145deg,var(--tint-violet),transparent 44%),rgba(255,255,255,.42);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-shadow)}
@@ -114,4 +123,4 @@
   .codex-page.is-fullscreen{padding:8px max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left))}
   .codex-page.is-fullscreen .codex-heading{margin-bottom:6px}
 }
-@media(prefers-reduced-motion:reduce){.codex-example-btn,.ai-expand,.ai-language-change,.ai-language-options button,.learning-prompt,.ai-action,.ai-reset,.ai-reset svg,.codex-line,.ai-language-dialog[open]{transition:none;animation:none;transform:none!important}}
+@media(prefers-reduced-motion:reduce){.codex-dots i{animation:none;opacity:.55}.codex-terminal.is-connecting::before{animation:none;width:calc(100% - 64px);opacity:.3}.codex-example-btn,.ai-expand,.ai-language-change,.ai-language-options button,.learning-prompt,.ai-action,.ai-reset,.ai-reset svg,.codex-line,.ai-language-dialog[open]{transition:none;animation:none;transform:none!important}}
