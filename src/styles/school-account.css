@@ -5,7 +5,7 @@
 .kc-account-dialog[open]{animation:kc-account-in .5s var(--ease)}
 @keyframes kc-account-in{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 .kc-account-dialog::backdrop{background:rgba(46,15,56,.22);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
-.kc-account-dialog h2{font-family:Comfortaa,Nunito,'Noto Sans TC',sans-serif;font-size:22px;font-weight:700;margin:0 44px 18px 0;color:var(--ink)}
+.kc-account-dialog h2{font-family:Comfortaa,Nunito,'PingFang TC','Microsoft JhengHei','Noto Sans TC',sans-serif;font-size:22px;font-weight:700;margin:0 44px 18px 0;color:var(--ink)}
 .kc-account-dialog label{display:grid;gap:7px;margin:0;font-size:14px;font-weight:700;color:var(--ink-2)}
 .kc-account-dialog form{display:grid;gap:16px}
 .kc-account-dialog input{box-sizing:border-box;min-height:46px;width:100%;min-width:0;padding:10px 14px;border:1px solid var(--field-line);border-radius:16px;background:rgba(255,255,255,.7);color:var(--ink);font:inherit;font-size:16px;font-weight:600;transition:background-color .2s}

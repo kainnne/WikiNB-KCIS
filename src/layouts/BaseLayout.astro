@@ -49,7 +49,10 @@ const authJson = JSON.stringify({
     />
     <title>{fullTitle}</title>
     <script id="auth-config" type="application/json" set:html={authJson}></script>
-  </head>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&family=DM+Mono:wght@400;500&family=Nunito:wght@500;600;700;800&display=swap" />
+</head>
   <body class={pageClass}>
     <div class="kc-shell">
       <DecorBackground />

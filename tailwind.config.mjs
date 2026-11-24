@@ -25,8 +25,8 @@ export default {
         },
       },
       fontFamily: {
-        display: ['Comfortaa', 'Nunito', 'Noto Sans TC', 'PingFang TC', 'sans-serif'],
-        body: ['Nunito', 'Noto Sans TC', 'PingFang TC', 'system-ui', 'sans-serif'],
+        display: ['Comfortaa', 'Nunito', 'PingFang TC','Microsoft JhengHei','Noto Sans TC', 'PingFang TC', 'sans-serif'],
+        body: ['Nunito', 'PingFang TC','Microsoft JhengHei','Noto Sans TC', 'PingFang TC', 'system-ui', 'sans-serif'],
         mono: ['DM Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       boxShadow: {

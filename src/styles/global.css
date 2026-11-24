@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&family=DM+Mono:wght@400;500&family=Nunito:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -470,7 +469,7 @@
 
 /* Brand words: Comfortaa, solid ink. */
 .brand-gradient-text {
-  font-family: Comfortaa, Nunito, 'Noto Sans TC', sans-serif;
+  font-family: Comfortaa, Nunito, 'PingFang TC','Microsoft JhengHei','Noto Sans TC', sans-serif;
   font-weight: 700;
   color: var(--ink);
   letter-spacing: -0.02em;
