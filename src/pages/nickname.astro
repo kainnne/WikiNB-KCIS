@@ -6,15 +6,14 @@ const base = import.meta.env.BASE_URL;
 
 <BaseLayout title="Edit display name" description="Change your WikiNB display name">
   <div class="animate-fadeIn mx-auto max-w-md">
-    <div class="kc-hero relative overflow-hidden rounded-[1.75rem] border px-6 py-10 sm:px-8">
-      <div class="kc-hero-glow" aria-hidden="true"></div>
+    <div class="kc-hero relative overflow-hidden rounded-[32px] border px-6 py-10 sm:px-8">
       <div class="relative z-[1]">
-        <h1 class="text-center font-display text-3xl font-bold text-kc-blue-deep" data-i18n="login.editNickname">Edit display name</h1>
-        <p id="nick-error" class="mt-4 hidden text-center text-sm text-red-600" role="alert"></p>
-        <p id="nick-ok" class="mt-4 hidden text-center text-sm text-emerald-700"></p>
+        <h1 class="text-center font-display text-3xl font-bold text-kc-ink" data-i18n="login.editNickname">Edit display name</h1>
+        <p id="nick-error" class="mt-4 hidden text-center text-sm font-bold text-[#a3214f]" role="alert"></p>
+        <p id="nick-ok" class="kc-success mt-4 hidden text-center text-sm font-bold"></p>
 
         <div class="mt-6 space-y-3">
-          <label class="block text-sm font-semibold text-kc-blue-deep" data-i18n="login.nicknameLabel"
+          <label class="block text-sm font-bold text-kc-muted" data-i18n="login.nicknameLabel"
             >Display name (required)</label
           >
           <input id="nick-input" type="text" maxlength="20" class="search-input pl-5" autocomplete="nickname" />
@@ -22,7 +21,7 @@ const base = import.meta.env.BASE_URL;
           <button id="nick-save" type="button" class="kc-btn-primary w-full justify-center py-3" data-i18n="login.saveNickname"
             >Save</button
           >
-          <a href={base} class="block w-full text-center text-sm font-semibold text-kc-blue hover:text-kc-purple" data-i18n="notes.back"
+          <a href={base} class="kc-link mx-auto block w-fit py-2 text-center text-sm" data-i18n="notes.back"
             >← Main</a
           >
         </div>

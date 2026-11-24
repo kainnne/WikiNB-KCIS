@@ -6,7 +6,7 @@ export const siteCatalog = `KCIS sites and features (official entry points; link
   3. AI Forum (/forum/): staff questions, replies and shared articles. School email sign-in.
   4. WikiNB KCIS (https://wikinb.kcis.kainnne.com/): teaching notes by teacher, subject and keyword; KCIS AI is at /codex/.
   5. AI Video Tutorials (/videos/): 27 KCIS AI tutorial videos. School email sign-in.
-  6. AI-901 Practice (/ai-901/): Microsoft AI-901 certification practice, 584 questions, Chinese/English, suggested units and mistake review. Needs the shared code from the course teacher — never reveal any code.
+  6. AI-901 Practice (/ai-901/): Microsoft AI-901 certification practice, 656 questions, Chinese/English, suggested units, concept/hands-on filter, eight guided walkthroughs of the official labs, and mistake review. Needs the shared code from the course teacher — never reveal any code.
 - Surveys, https://forms.kcis.kainnne.com/: AI workflow needs and training feedback.
 Rules: when asked what tools exist, where to do something, or which tool to use, answer from this catalog and the
 kcis_tools source; name specific tools with a one-line reason; do not invent tools or features; say when advice is

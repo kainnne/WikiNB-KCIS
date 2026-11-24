@@ -1,10 +1,15 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
-<BaseLayout title="Sign in"><button id="shared-login" class="kc-btn-primary" type="button" data-i18n="nav.login">Log in</button></BaseLayout>
+<BaseLayout title="Sign in"><button id="shared-login" class="kc-btn-primary mx-auto mt-[12vh] flex w-fit" type="button" data-i18n="nav.login">Log in</button></BaseLayout>
 <script>
 import { mountSchoolAccount } from '../scripts/school-account.js';
 mountSchoolAccount();
 document.getElementById('shared-login')?.addEventListener('click',()=>document.getElementById('nav-login')?.click());
-document.getElementById('nav-login')?.click();
+// The header button stays disabled until the account check finishes; open the sign-in dialog once it is ready.
+const navLogin=document.getElementById('nav-login');
+if(navLogin){
+  if(!navLogin.disabled)navLogin.click();
+  else{const watch=new MutationObserver(()=>{if(!navLogin.disabled){watch.disconnect();navLogin.click();}});watch.observe(navLogin,{attributes:true,attributeFilter:['disabled']});setTimeout(()=>watch.disconnect(),10000);}
+}
 </script>

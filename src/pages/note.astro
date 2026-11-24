@@ -11,7 +11,7 @@ const base = import.meta.env.BASE_URL;
       <p class="mb-3" data-i18n="note.gate">This note is available only to signed-in Kang Chiao users.</p>
       <a id="note-login-link" href={`${base}login`} class="kc-btn-primary inline-flex" data-i18n="note.goLogin">Go to login</a>
     </div>
-    <div id="note-error" class="kc-card hidden border border-red-200 bg-red-50/80 p-6 text-red-800"></div>
+    <div id="note-error" class="kc-card kc-error hidden p-6"></div>
 
     <article id="note-article" class="note-reader hidden">
       <div class="note-reader-toolbar"><span id="note-reader-label" class="note-reader-label"></span><button id="note-copy" type="button" class="wiki-fs-btn wiki-copy-btn" data-i18n-aria="reader.copy" aria-label="Copy link"><span class="wiki-copy-label">copy</span></button><button id="note-maximize" type="button" class="wiki-fs-btn" aria-label="Expand reader"><span class="wiki-fs-icon" aria-hidden="true">⛶</span></button></div>

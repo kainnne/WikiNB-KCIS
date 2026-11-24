@@ -36,7 +36,8 @@ const authJson = JSON.stringify({
 <html lang="en" translate="no" data-base={import.meta.env.BASE_URL}>
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#fbf2f6" />
     <meta name="google" content="notranslate" />
     <meta name="googlebot" content="notranslate" />
     <meta name="description" content={description} />
@@ -57,5 +58,16 @@ const authJson = JSON.stringify({
         <slot />
       </main>
     </div>
+    <script is:inline>
+      // Glass sheen follows the pointer on cards; a passive touch listener lets :active press states show on iOS.
+      document.addEventListener('touchstart', function () {}, { passive: true });
+      document.addEventListener('pointermove', function (event) {
+        var card = event.target instanceof Element ? event.target.closest('.kc-card-hover') : null;
+        if (!card) return;
+        var rect = card.getBoundingClientRect();
+        card.style.setProperty('--mx', event.clientX - rect.left + 'px');
+        card.style.setProperty('--my', event.clientY - rect.top + 'px');
+      }, { passive: true });
+    </script>
   </body>
 </html>

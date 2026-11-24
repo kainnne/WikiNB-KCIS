@@ -1,26 +1,33 @@
-/* Shared verbatim with WikiNB KCIS: account controls and dialog. */
-.kc-account-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px;max-width:180px;padding:8px 14px;border:1px solid #dce1ee;border-radius:999px;background:#edf0f9;color:#243c6c;font:inherit;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:background .18s,transform .18s,border-color .18s}
-.kc-account-button:hover{background:#fff;border-color:#bcb1d5}.kc-account-button:active{transform:translateY(1px)}
-.kc-account-dialog{width:min(400px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow-y:auto;padding:28px;border:1px solid #dce1ee;border-radius:24px;background:#fff;color:#243c6c;box-shadow:0 20px 80px #26376830;font-family:inherit}
-.kc-account-dialog::backdrop{background:#23335930;backdrop-filter:blur(5px)}
-.kc-account-dialog h2{font-size:22px;font-weight:600;margin:0 0 18px}
-.kc-account-dialog label{display:grid;gap:7px;margin:0;font-size:14px;font-weight:500}
+/* Account controls and dialog (sign in with email code, name and department, sign out). Pink-purple glass. */
+.kc-account-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px;max-width:180px;padding:8px 16px;border:1px solid var(--glass-edge);border-radius:999px;background:rgba(255,255,255,.6);color:var(--ink);font:inherit;font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;box-shadow:var(--glass-shadow-sm);transition:background-color .2s,transform .3s var(--ease)}
+.kc-account-button:hover{background:rgba(255,255,255,.9);transform:translateY(-1px)}.kc-account-button:active{transform:translateY(1px)}
+.kc-account-dialog{width:min(400px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow-y:auto;padding:30px 28px 28px;border:1px solid var(--glass-edge);border-radius:32px;background:linear-gradient(145deg,var(--tint-kcis),transparent 44%),rgba(255,255,255,.82);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);color:var(--ink);box-shadow:0 30px 90px rgba(46,15,56,.22),inset 0 1px rgba(255,255,255,.6);font-family:inherit}
+.kc-account-dialog[open]{animation:kc-account-in .5s var(--ease)}
+@keyframes kc-account-in{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.kc-account-dialog::backdrop{background:rgba(46,15,56,.22);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.kc-account-dialog h2{font-family:Comfortaa,Nunito,'Noto Sans TC',sans-serif;font-size:22px;font-weight:700;margin:0 44px 18px 0;color:var(--ink)}
+.kc-account-dialog label{display:grid;gap:7px;margin:0;font-size:14px;font-weight:700;color:var(--ink-2)}
 .kc-account-dialog form{display:grid;gap:16px}
-.kc-account-dialog input{box-sizing:border-box;min-height:44px;width:100%;min-width:0;padding:10px 12px;border:1px solid #dce1ee;border-radius:12px;background:#f8f9fc;color:#243c6c;font:inherit;font-size:16px}
-.kc-account-dialog input:focus{outline:2px solid #9783bd;outline-offset:2px}
-.kc-account-close{position:absolute;right:14px;top:10px;display:flex;align-items:center;justify-content:center;min-width:40px;min-height:40px;padding:0;border:0;border-radius:50%;background:transparent;color:#6b7390;font-size:25px;cursor:pointer}.kc-account-close:hover{background:#f0edf8}
-.kc-account-email{margin:-6px 0 20px;font-size:13px;color:#697591;overflow-wrap:anywhere}
-.kc-account-dialog small{font-size:12px;font-weight:400;color:#697591}
-.kc-account-dialog p[role=alert]{margin:0;color:#b42338;font-size:14px;overflow-wrap:anywhere}
-.kc-account-actions{display:flex;align-items:center;gap:10px;margin-top:3px}
-.kc-account-primary,.kc-account-secondary{min-height:44px;padding:10px 18px;border:1px solid transparent;border-radius:999px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:background .18s,transform .18s}
-.kc-account-primary{background:#354c93;color:white}.kc-account-primary:hover{background:#4c438b}
-.kc-account-secondary{border-color:#dce1ee;background:#fff;color:#243c6c}.kc-account-secondary:hover{background:#f0edf8}
-.kc-account-primary:active,.kc-account-secondary:active{transform:translateY(1px)}
-.kc-account-text{min-height:40px;padding:4px 0;border:0;background:transparent;color:#536697;text-align:left;font:inherit;font-size:13px;cursor:pointer}
-.kc-account-button:focus-visible,.kc-account-primary:focus-visible,.kc-account-secondary:focus-visible,.kc-account-close:focus-visible,.kc-account-text:focus-visible{outline:3px solid #9da5dd;outline-offset:3px}
+.kc-account-dialog input{box-sizing:border-box;min-height:46px;width:100%;min-width:0;padding:10px 14px;border:1px solid var(--field-line);border-radius:16px;background:rgba(255,255,255,.7);color:var(--ink);font:inherit;font-size:16px;font-weight:600;transition:background-color .2s}
+.kc-account-dialog input:focus{outline:2px solid var(--focus);outline-offset:2px;background:rgba(255,255,255,.9)}
+.kc-account-dialog #school-code{font-family:'DM Mono',ui-monospace,monospace;font-weight:500;letter-spacing:.32em}
+.kc-account-close{position:absolute;right:14px;top:14px;display:flex;align-items:center;justify-content:center;min-width:40px;min-height:40px;padding:0;border:1px solid var(--glass-edge);border-radius:999px;background:rgba(255,255,255,.6);color:var(--ink-2);font-size:22px;line-height:1;cursor:pointer;transition:background-color .2s,transform .3s var(--ease)}.kc-account-close:hover{background:rgba(255,255,255,.95)}.kc-account-close:active{transform:translateY(1px)}
+.kc-account-email{margin:-6px 0 20px;font-size:13px;font-weight:600;color:var(--ink-3);overflow-wrap:anywhere}
+.kc-account-dialog small{font-size:12px;font-weight:500;color:var(--ink-3)}
+.kc-account-dialog p[role=alert]{margin:0;color:var(--danger);font-size:14px;font-weight:700;overflow-wrap:anywhere}
+.kc-account-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:3px}
+.kc-account-primary,.kc-account-secondary{min-height:44px;padding:10px 22px;border:1px solid transparent;border-radius:999px;font:inherit;font-size:14px;font-weight:800;cursor:pointer;transition:transform .3s var(--ease),box-shadow .3s var(--ease),background-color .2s}
+.kc-account-primary{background:var(--pink);color:var(--pink-ink);border-color:rgba(255,255,255,.55);box-shadow:var(--pink-shadow)}.kc-account-primary:hover{transform:translateY(-1px);box-shadow:var(--pink-shadow-hover)}
+.kc-account-secondary{border-color:var(--glass-edge);background:rgba(255,255,255,.6);color:var(--ink);box-shadow:var(--glass-shadow-sm)}.kc-account-secondary:hover{background:rgba(255,255,255,.92);transform:translateY(-1px)}
+.kc-account-primary:active{transform:translateY(1px);box-shadow:var(--pink-shadow-press)}.kc-account-secondary:active{transform:translateY(1px);box-shadow:inset 0 2px 4px rgba(46,15,56,.1)}
+.kc-account-text{justify-self:start;min-height:40px;padding:4px 0;border:0;background:linear-gradient(currentColor,currentColor) 0 calc(100% - 8px)/0 1.5px no-repeat;color:var(--plum);text-align:left;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background-size .45s var(--ease)}
+.kc-account-text:hover,.kc-account-text:active{background-size:100% 1.5px}
+.kc-account-button:focus-visible,.kc-account-primary:focus-visible,.kc-account-secondary:focus-visible,.kc-account-close:focus-visible,.kc-account-text:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .kc-account-dialog button:disabled,.kc-account-dialog input:disabled,.kc-account-button:disabled{opacity:.55;cursor:default;transform:none}
-.kc-account-notice{position:fixed;right:18px;bottom:18px;z-index:100;padding:10px 15px;max-width:calc(100vw - 36px);border:1px solid #dce1ee;border-radius:12px;background:white;color:#243c6c;box-shadow:0 4px 20px #26376814;font-size:13px;overflow-wrap:anywhere}.kc-account-notice:empty{display:none}
+/* Status toast (also carries errors, so its mark stays neutral plum). */
+.kc-account-notice{position:fixed;right:18px;bottom:max(18px,env(safe-area-inset-bottom));z-index:100;display:flex;align-items:center;gap:10px;padding:11px 18px 11px 14px;max-width:calc(100vw - 36px);border:1px solid var(--glass-edge);border-radius:999px;background:rgba(255,255,255,.78);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);color:var(--ink);box-shadow:var(--glass-shadow-sm);font-size:13px;font-weight:700;overflow-wrap:anywhere;animation:kc-account-in .5s var(--ease)}
+.kc-account-notice::before{content:'';flex:none;width:8px;height:8px;border-radius:999px;background:var(--plum)}
+.kc-account-notice:empty{display:none}
 .kc-account-dialog [hidden]{display:none!important}
-@media(max-width:640px){.kc-account-button{max-width:110px;padding:8px 10px;font-size:12px}.kc-account-dialog{padding:24px}.kc-account-dialog h2{font-size:20px}}
-@media(prefers-reduced-motion:reduce){.kc-account-button,.kc-account-primary,.kc-account-secondary{transition:none}}
+@media(max-width:640px){.kc-account-button{max-width:110px;padding:8px 10px;font-size:12px}.kc-account-dialog{padding:26px 22px 22px;border-radius:24px}.kc-account-dialog h2{font-size:20px}.kc-account-notice{left:16px;right:16px;border-radius:24px}}
+@media(prefers-reduced-motion:reduce){.kc-account-button,.kc-account-primary,.kc-account-secondary,.kc-account-close,.kc-account-text{transition:none}.kc-account-dialog[open],.kc-account-notice{animation:none}}

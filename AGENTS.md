@@ -6,7 +6,7 @@
 
 - 多老師資料夾：`wiki/teachers/{teacher_id}/{subject_id}/`
 - 固定 keywords：**老師名字** + **科目**
-- 品牌：康橋藍／紫 + `public/brand/kangchiao-logo.png`
+- 品牌：康橋校徽 `public/brand/kangchiao-logo.png`；介面照 [`docs/DESIGN-RULES.md`](docs/DESIGN-RULES.md)（粉紫玻璃，2026-11-24 起）
 - 詳細規格：`docs/REQUIREMENTS_AND_TECH.md`
 
 ## 目前階段
@@ -34,8 +34,8 @@
 
 ## 品牌
 
-- 勿使用個人 WikiNB（Kainnne）粉紅主題
-- 使用 CSS 變數：`--kc-blue`、`--kc-purple`、`--kc-mist` 等
+- 2026-11-24 起（Kaine 指定）：KCIS 介面統一改為粉紫玻璃，照 [`docs/DESIGN-RULES.md`](docs/DESIGN-RULES.md)；舊的「康橋藍、勿用粉紅主題」規則作廢。
+- 校徽照用；康橋紫 `#900080` 只用於 KCIS 識別。
 
 ## 本地指令
 

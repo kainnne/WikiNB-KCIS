@@ -11,7 +11,7 @@ const base = import.meta.env.BASE_URL;
       <div class="min-w-0">
         <h1 class="codex-page-title text-2xl font-bold text-kc-blue-deep sm:text-3xl md:text-4xl">
           <span
-            class="bg-gradient-to-r from-kc-blue to-kc-purple bg-clip-text text-transparent"
+            class="brand-gradient-text"
             data-i18n="gemini.title">KCIS AI</span
           >
         </h1>
@@ -33,11 +33,11 @@ const base = import.meta.env.BASE_URL;
     <div id="codex-gate" class="kc-card hidden p-8 text-center">
       <p class="text-kc-muted">
         <span data-i18n="gemini.gate">Please sign in to use KCIS AI.</span>
-        <a href={`${base}login`} data-school-signin class="font-semibold text-kc-blue" data-i18n="nav.login">Log in</a>
+        <a href={`${base}login`} data-school-signin class="kc-link" data-i18n="nav.login">Log in</a>
       </p>
     </div>
 
-    <div id="codex-offline" class="kc-card hidden border border-amber-200 bg-amber-50/50 p-6 text-center text-amber-900"></div>
+    <div id="codex-offline" class="kc-card kc-notice hidden p-6 text-center"></div>
 
     <div id="codex-terminal" class="codex-terminal hidden">
       <div id="codex-output" class="codex-output">
@@ -251,7 +251,7 @@ const base = import.meta.env.BASE_URL;
     terminal?.classList.remove('hidden');
     await loadModels(isCurrent);
     if(!isCurrent())return false;
-    onLocaleChange();
+    if(responseLanguage)applyConversationLanguage();
     input?.focus();
     return true;
   });

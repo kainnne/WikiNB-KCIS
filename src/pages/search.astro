@@ -14,7 +14,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
 
 <BaseLayout title="WikiNB" description="搜尋與瀏覽康橋教學筆記">
   <div class="animate-fadeIn">
-    <div class="mb-6 text-center md:text-left">
+    <div class="mx-auto mb-6 max-w-3xl text-center md:text-left">
       <h1 class="font-display text-4xl font-bold md:text-5xl">
         <span class="brand-gradient-text" data-i18n="search.title">WikiNB</span>
       </h1>
@@ -24,7 +24,7 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
       <SearchBar size="lg" showButton={true} action="/search" />
     </div>
 
-    <p id="search-meta" class="mt-4 text-center text-sm text-kc-muted md:text-left"></p>
+    <p id="search-meta" class="mx-auto mt-4 max-w-3xl text-center text-sm text-kc-muted md:text-left"></p>
 
     <div
       id="search-results"
@@ -118,7 +118,11 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
 
 <style>
   #search-results > :not([hidden]) ~ :not([hidden]) {
-    border-color: rgba(27, 79, 156, 0.1);
+    border-color: var(--line);
+  }
+
+  #search-meta {
+    font-weight: 600;
   }
 
   .wiki-scroll {
@@ -132,13 +136,11 @@ const searchIndex = getSearchIndex(pages).map(({ html: _h, bodyText: _b, ...rest
   }
 
   .wiki-scroll::-webkit-scrollbar-thumb {
-    background: rgba(27, 79, 156, 0.28);
+    background: rgba(123, 47, 143, 0.28);
     border-radius: 9999px;
   }
 
-  .wiki-title-link:hover {
-    text-decoration: underline;
-    text-decoration-color: rgba(107, 61, 154, 0.4);
-    text-underline-offset: 4px;
+  #search-empty {
+    color: var(--ink-2);
   }
 </style>

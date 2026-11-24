@@ -6,11 +6,10 @@ const base = import.meta.env.BASE_URL;
 
 <BaseLayout title="Page not found">
   <div class="animate-fadeIn mx-auto max-w-lg text-center">
-    <div class="kc-hero relative overflow-hidden rounded-[1.75rem] border px-8 py-14">
-      <div class="kc-hero-glow" aria-hidden="true"></div>
+    <div class="kc-hero relative overflow-hidden rounded-[32px] border px-8 py-14">
       <div class="relative z-[1]">
-        <h1 class="font-display text-5xl font-extrabold">
-          <span class="brand-gradient-text" data-i18n="notFound.title">404</span>
+        <h1 class="font-display text-6xl">
+          <span class="brand-gradient-text kc-number" data-i18n="notFound.title">404</span>
         </h1>
         <p class="mt-3 text-kc-muted" data-i18n="notFound.body">This page or note was not found.</p>
         <a href={base} class="kc-btn-primary mt-8 inline-flex" data-i18n="notFound.home">Back to main</a>
