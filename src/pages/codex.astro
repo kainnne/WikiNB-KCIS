@@ -361,5 +361,8 @@ const base = import.meta.env.BASE_URL;
   document.addEventListener('wikinb:auth-change', (event) => {
     if (event.detail?.loggedIn) void init(true);else{initialization.invalidate();abortController?.abort();chatHistory=[];failedAttempt=null;setExpanded(false);offline?.classList.add('hidden');terminal?.classList.add('hidden');gate?.classList.remove('hidden');for(const line of [...output.children])if(line.id!=='codex-intro'&&line!==promptPanel)line.remove();output.append(promptPanel);promptPanel.hidden=false;}
   });
-  askLanguage();
+  // Arriving from kcis.kainnne.com with ?lang= means the language is already chosen; otherwise ask once.
+  const linkLanguage=new URLSearchParams(location.search).get('lang');
+  if(linkLanguage==='en'||linkLanguage==='zh'){responseLanguage=linkLanguage==='en'?'en':'zh-TW';applyConversationLanguage();void init();}
+  else askLanguage();
 </script>

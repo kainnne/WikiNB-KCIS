@@ -1,8 +1,13 @@
 import en from '../locales/en.json';
 import zh from '../locales/zh-TW.json';
 const localeKey = 'kcis:interface-language';
-let locale = 'en';
-try { if (localStorage.getItem(localeKey) === 'zh-TW') locale = 'zh-TW'; } catch {}
+// Chinese by default; a ?lang=en|zh link (from kcis.kainnne.com) wins, then the saved choice.
+let locale = 'zh-TW';
+try {
+  const fromLink = new URLSearchParams(location.search).get('lang');
+  if (fromLink === 'en' || fromLink === 'zh' || fromLink === 'zh-TW') { locale = fromLink === 'en' ? 'en' : 'zh-TW'; localStorage.setItem(localeKey, locale); }
+  else if (localStorage.getItem(localeKey) === 'en') locale = 'en';
+} catch {}
 export function getLocale() { return locale; }
 export function t(key, vars = {}) {
   let text = (locale === 'zh-TW' ? zh[key] : en[key]) ?? en[key] ?? key;
