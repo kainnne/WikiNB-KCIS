@@ -1,0 +1,797 @@
+[
+  {
+    "name": "康軒 × Kuse",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "lesson_plan",
+      "worksheet",
+      "quiz",
+      "presentation",
+      "research",
+      "summary",
+      "translate",
+      "image",
+      "admin_draft",
+      "fun_learn",
+      "homework_help",
+      "study_notes"
+    ],
+    "shortDescription": {
+      "zh-TW": "康軒 × Kuse：結合康軒教材與課綱，快速生成教案、學習單、測驗與簡報等備課素材。",
+      "en": "Kang Hsuan × Kuse: generate lesson plans, worksheets, quizzes, and slides grounded in local textbooks."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://kuse.knsh.com.tw/",
+    "educationUrl": "https://kuse.knsh.com.tw/"
+  },
+  {
+    "name": "BrainingCamp",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "simulation",
+      "worksheet",
+      "tutoring"
+    ],
+    "shortDescription": {
+      "zh-TW": "數學虛擬教具與互動操作，適合概念具體化。",
+      "en": "Virtual math manipulatives for concrete concept building."
+    },
+    "freeStatus": "paid",
+    "requiresAccount": "unknown",
+    "officialUrl": "https://www.brainingcamp.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Canva",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "presentation",
+      "worksheet",
+      "image",
+      "poster",
+      "video"
+    ],
+    "shortDescription": {
+      "zh-TW": "設計與簡報平台，模板多，適合海報、學習單版面與簡報。",
+      "en": "Design platform with templates for posters, worksheets, and slides."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://www.canva.com/",
+    "educationUrl": "https://www.canva.com/education/"
+  },
+  {
+    "name": "ChatGPT",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "lesson_plan",
+      "worksheet",
+      "quiz",
+      "writing",
+      "translate",
+      "tutoring",
+      "coding"
+    ],
+    "shortDescription": {
+      "zh-TW": "通用對話式 AI，適合教案草稿、寫作回饋與概念講解。",
+      "en": "General chatbot for lesson drafts, writing feedback, and concept explanations."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://chatgpt.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "ClassPoint",
+    "roles": [
+      "teacher"
+    ],
+    "tasks": [
+      "quiz",
+      "presentation",
+      "collaboration"
+    ],
+    "shortDescription": {
+      "zh-TW": "整合於 PowerPoint 的課堂互動與評量工具。",
+      "en": "PowerPoint-integrated classroom interaction and assessment."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://www.classpoint.io/",
+    "educationUrl": null
+  },
+  {
+    "name": "Claude Code",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "coding",
+      "web_project",
+      "tutoring"
+    ],
+    "shortDescription": {
+      "zh-TW": "Anthropic 代理式編碼工具，學習曲線較高，適合進階程式任務。",
+      "en": "Anthropic agentic coding tool; steeper curve for advanced programming tasks."
+    },
+    "freeStatus": "paid",
+    "requiresAccount": true,
+    "officialUrl": "https://www.anthropic.com/claude-code",
+    "educationUrl": null
+  },
+  {
+    "name": "Codex",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "coding",
+      "web_project",
+      "tutoring"
+    ],
+    "shortDescription": {
+      "zh-TW": "OpenAI 編碼代理／相關產品線，適合進階開發與自動化。",
+      "en": "OpenAI coding agent product line for advanced development workflows."
+    },
+    "freeStatus": "paid",
+    "requiresAccount": true,
+    "officialUrl": "https://openai.com/codex/",
+    "educationUrl": null
+  },
+  {
+    "name": "Curipod",
+    "roles": [
+      "teacher"
+    ],
+    "tasks": [
+      "lesson_plan",
+      "quiz",
+      "presentation",
+      "collaboration"
+    ],
+    "shortDescription": {
+      "zh-TW": "互動課堂簡報／活動生成，偏教師引導的即時互動。",
+      "en": "Interactive lesson slides/activities for live classroom engagement."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://curipod.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Cursor",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "coding",
+      "web_project",
+      "tutoring"
+    ],
+    "shortDescription": {
+      "zh-TW": "AI 程式編輯器，適合資訊課專題、網頁專案與教師開發教材腳本。",
+      "en": "AI code editor for CS projects, web builds, and teachers scripting teaching tools."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://cursor.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Ecrett Music",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "music",
+      "sound"
+    ],
+    "shortDescription": {
+      "zh-TW": "依情緒／場景選配的音樂素材工具。",
+      "en": "Scene/mood-based music creation tool."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": "unknown",
+    "officialUrl": "https://ecrettmusic.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Edcafe",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "lesson_plan",
+      "worksheet",
+      "quiz",
+      "tutoring"
+    ],
+    "shortDescription": {
+      "zh-TW": "教育取向的 AI 學習／備課輔助（細節待官方頁驗證）。",
+      "en": "Education-oriented AI assistant (details pending official verification)."
+    },
+    "freeStatus": "unknown",
+    "requiresAccount": "unknown",
+    "officialUrl": "https://www.edcafe.ai/",
+    "educationUrl": null
+  },
+  {
+    "name": "Edpuzzle",
+    "roles": [
+      "teacher"
+    ],
+    "tasks": [
+      "video",
+      "lesson_plan",
+      "quiz",
+      "feedback"
+    ],
+    "shortDescription": {
+      "zh-TW": "康橋校內使用：互動影片教學（嵌入題目、剪輯 YouTube 等），適合翻轉課堂。",
+      "en": "KC campus use: interactive video lessons with embedded questions."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://edpuzzle.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Gemini",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "lesson_plan",
+      "worksheet",
+      "quiz",
+      "translate",
+      "writing",
+      "research",
+      "tutoring"
+    ],
+    "shortDescription": {
+      "zh-TW": "Google 多模態對話助手，適合備課、出題、摘要與雙語教材草稿。",
+      "en": "Google multimodal assistant for lesson prep, quizzes, summaries, and bilingual drafts."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://gemini.google.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Google Sites",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "presentation",
+      "portfolio",
+      "collaboration"
+    ],
+    "shortDescription": {
+      "zh-TW": "用學校 Google 帳號快速建立單元網頁或成果頁。",
+      "en": "Build unit or portfolio sites quickly with a Google account."
+    },
+    "freeStatus": "free",
+    "requiresAccount": true,
+    "officialUrl": "https://sites.google.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "HeyGen",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "video",
+      "presentation",
+      "translate"
+    ],
+    "shortDescription": {
+      "zh-TW": "AI 虛擬講者／數位人影片，適合解說、雙語教材與簡短教學片。",
+      "en": "AI avatar videos for explainers, bilingual lessons, and short teaching clips."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://www.heygen.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "HyRead",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "reading",
+      "research"
+    ],
+    "shortDescription": {
+      "zh-TW": "華文電子書／圖書館閱讀服務（校園方案依單位而異）。",
+      "en": "Chinese ebook / library reading service (campus plans vary)."
+    },
+    "freeStatus": "unknown",
+    "requiresAccount": "unknown",
+    "officialUrl": "https://www.hyread.com.tw/",
+    "educationUrl": null
+  },
+  {
+    "name": "Luma Dream Machine",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "video",
+      "simulation",
+      "interest_explore"
+    ],
+    "shortDescription": {
+      "zh-TW": "文字／圖片轉影片，動態與物理感較自然，適合 STEM 示意與概念短片。",
+      "en": "Text/image-to-video with natural motion — useful for STEM demos and concept clips."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://lumalabs.ai/dream-machine",
+    "educationUrl": null
+  },
+  {
+    "name": "MagicSchool",
+    "roles": [
+      "teacher"
+    ],
+    "tasks": [
+      "lesson_plan",
+      "worksheet",
+      "quiz",
+      "feedback",
+      "admin_draft"
+    ],
+    "shortDescription": {
+      "zh-TW": "面向教師的 AI 工具集合，常見於教案、差異化教學與行政文書。",
+      "en": "Teacher-oriented AI toolkit for lesson planning, differentiation, and admin drafts."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://www.magicschool.ai/",
+    "educationUrl": "https://www.magicschool.ai/"
+  },
+  {
+    "name": "MathGPT",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "tutoring",
+      "quiz",
+      "worksheet"
+    ],
+    "shortDescription": {
+      "zh-TW": "數學解題與講解取向的 AI，適合練習與步驟說明。",
+      "en": "Math-focused AI for step-by-step practice and explanations."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": "unknown",
+    "officialUrl": "https://math-gpt.org/",
+    "educationUrl": null
+  },
+  {
+    "name": "Microsoft Copilot",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "writing",
+      "research",
+      "summary",
+      "presentation",
+      "translate",
+      "homework_help",
+      "study_notes"
+    ],
+    "shortDescription": {
+      "zh-TW": "微軟 AI 助手，整合 Office／Edge，適合寫作、摘要與簡報草稿。",
+      "en": "Microsoft AI assistant for writing, summaries, and presentation drafts."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://copilot.microsoft.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "MyEdit",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "image",
+      "poster"
+    ],
+    "shortDescription": {
+      "zh-TW": "康橋校內使用：美術課 AI 修圖／製圖工具。",
+      "en": "KC campus use: AI photo editing and image creation for art class."
+    },
+    "freeStatus": "free",
+    "requiresAccount": true,
+    "officialUrl": "https://myedit.online/",
+    "educationUrl": null
+  },
+  {
+    "name": "NotebookLM",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "research",
+      "summary",
+      "quiz",
+      "lesson_plan"
+    ],
+    "shortDescription": {
+      "zh-TW": "依使用者提供的來源整理筆記、問答與導讀，適合教材彙整。",
+      "en": "Grounded notes/Q&A from user-provided sources; good for material synthesis."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://notebooklm.google.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Padlet",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "collaboration",
+      "brainstorm",
+      "presentation"
+    ],
+    "shortDescription": {
+      "zh-TW": "牆板式協作，適合腦力激盪、作品牆與課堂回應。",
+      "en": "Board-style collaboration for brainstorming and class responses."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://padlet.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Pika",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "video",
+      "image"
+    ],
+    "shortDescription": {
+      "zh-TW": "快速生成短影片／動態片段，適合社群風格與快速試作。",
+      "en": "Fast short AI video clips — good for quick drafts and social-style content."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://pika.art/",
+    "educationUrl": null
+  },
+  {
+    "name": "Pixton",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "image",
+      "poster",
+      "writing",
+      "presentation",
+      "portfolio"
+    ],
+    "shortDescription": {
+      "zh-TW": "漫畫／故事格創作，適合英文寫作、視覺敘事與專題展示。",
+      "en": "Comic and storyboard creation for visual storytelling and English projects."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://www.pixton.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Playground AI",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "image",
+      "poster",
+      "interest_explore"
+    ],
+    "shortDescription": {
+      "zh-TW": "康橋校內使用：美術課 AI 生圖，適合探索風格與海報草稿。",
+      "en": "KC campus use: AI image generation for art projects and poster drafts."
+    },
+    "freeStatus": "free",
+    "requiresAccount": true,
+    "officialUrl": "https://playground.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Recraft AI",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "image",
+      "poster",
+      "portfolio"
+    ],
+    "shortDescription": {
+      "zh-TW": "康橋校內使用：英文專題／美術課 AI 製圖（向量化、插畫風格）。",
+      "en": "KC campus use: AI illustration for English projects and art classes."
+    },
+    "freeStatus": "free",
+    "requiresAccount": true,
+    "officialUrl": "https://www.recraft.ai/",
+    "educationUrl": null
+  },
+  {
+    "name": "Runway",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "video",
+      "image",
+      "presentation"
+    ],
+    "shortDescription": {
+      "zh-TW": "AI 影片生成（Gen-4），適合創意短片、視覺素材與進階專題。",
+      "en": "AI video generation (Gen-4) for creative clips and visual projects."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://runwayml.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Seesaw",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "collaboration",
+      "portfolio",
+      "feedback"
+    ],
+    "shortDescription": {
+      "zh-TW": "學習歷程與家庭連結平台，常見於小學作品蒐集。",
+      "en": "Learning journal / family connection platform, common in elementary."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://seesaw.me/",
+    "educationUrl": null
+  },
+  {
+    "name": "Sora",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "video"
+    ],
+    "shortDescription": {
+      "zh-TW": "OpenAI 影片生成相關產品；2026-07 官方頁面出現停用說明，第一版預設不推薦。",
+      "en": "OpenAI video product; official page indicated discontinuation as of 2026-07 crawl — excluded from default recommendations."
+    },
+    "freeStatus": "paid",
+    "requiresAccount": true,
+    "officialUrl": "https://openai.com/sora",
+    "educationUrl": null
+  },
+  {
+    "name": "Soundraw",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "music",
+      "sound"
+    ],
+    "shortDescription": {
+      "zh-TW": "AI 音樂生成，適合影片配樂或課堂氣氛音樂（注意授權）。",
+      "en": "AI music generation for video beds or class atmosphere (check licensing)."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": "unknown",
+    "officialUrl": "https://soundraw.io/",
+    "educationUrl": null
+  },
+  {
+    "name": "Stellarium",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "simulation",
+      "tutoring"
+    ],
+    "shortDescription": {
+      "zh-TW": "天文星空模擬，適合地球科學／天文單元。",
+      "en": "Planetarium simulation for earth science / astronomy units."
+    },
+    "freeStatus": "free",
+    "requiresAccount": "unknown",
+    "officialUrl": "https://stellarium.org/",
+    "educationUrl": null
+  },
+  {
+    "name": "SudoAI",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "image",
+      "video"
+    ],
+    "shortDescription": {
+      "zh-TW": "媒體生成類工具（官方資訊待確認，第一版標記 needs_review）。",
+      "en": "Media generation tool (official details pending review)."
+    },
+    "freeStatus": "unknown",
+    "requiresAccount": "unknown",
+    "officialUrl": null,
+    "educationUrl": null
+  },
+  {
+    "name": "Suno",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "music",
+      "sound",
+      "video"
+    ],
+    "shortDescription": {
+      "zh-TW": "用文字描述就能生成歌曲與人聲，適合興趣探索、配樂靈感與創意專題。",
+      "en": "Text-to-song generation with vocals — great for exploration, soundbeds, and creative projects."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://suno.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "Vidnoz AI",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "video",
+      "presentation"
+    ],
+    "shortDescription": {
+      "zh-TW": "AI 影片／虛擬人物相關創作工具，適合短影片教材。",
+      "en": "AI video / avatar creation tool for short instructional clips."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": "unknown",
+    "officialUrl": "https://www.vidnoz.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "WeVideo",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "video",
+      "presentation",
+      "portfolio"
+    ],
+    "shortDescription": {
+      "zh-TW": "康橋校內使用：雲端影片剪輯，含 AI 輔助功能，適合專題與簡報影片。",
+      "en": "KC campus use: cloud video editor with AI assists for projects and slide videos."
+    },
+    "freeStatus": "freemium",
+    "requiresAccount": true,
+    "officialUrl": "https://www.wevideo.com/",
+    "educationUrl": null
+  },
+  {
+    "name": "康軒 AI 語音小助手",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "language_practice",
+      "tutoring"
+    ],
+    "shortDescription": {
+      "zh-TW": "康軒相關語音輔助工具，細節與入口待校內／官方確認。",
+      "en": "Kang Hsuan-related voice assistant; entry details pending verification."
+    },
+    "freeStatus": "unknown",
+    "requiresAccount": "unknown",
+    "officialUrl": null,
+    "educationUrl": null
+  },
+  {
+    "name": "曉聲通",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "language_practice",
+      "reading"
+    ],
+    "shortDescription": {
+      "zh-TW": "語音／朗讀相關教育工具（官方入口待確認）。",
+      "en": "Speech/reading education tool (official entry pending)."
+    },
+    "freeStatus": "unknown",
+    "requiresAccount": "unknown",
+    "officialUrl": null,
+    "educationUrl": null
+  },
+  {
+    "name": "無邊記",
+    "roles": [
+      "teacher",
+      "student"
+    ],
+    "tasks": [
+      "brainstorm",
+      "collaboration",
+      "presentation"
+    ],
+    "shortDescription": {
+      "zh-TW": "Apple 無邊記（Freeform）白板，適合腦力激盪與視覺整理。",
+      "en": "Apple Freeform whiteboard for brainstorming and visual organization."
+    },
+    "freeStatus": "free",
+    "requiresAccount": "unknown",
+    "officialUrl": "https://support.apple.com/guide/freeform/welcome/mac",
+    "educationUrl": null
+  }
+]

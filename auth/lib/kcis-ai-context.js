@@ -3,9 +3,18 @@ import path from 'node:path';
 import {searchLibraryText,listLibrary,readLibrary} from './school-library.js';
 import {loadPrivateCorpusForUser} from './private-files.js';
 import {queryTerms,relevantExcerpt,retrievalQuestion} from './retrieval.js';
+import {siteCatalog, toolSource} from './kcis-catalog.mjs';
+import tools from './kcis-tools.json' with {type: 'json'};
+import {courseSeriesId, seriesInstruction, seriesOutlines} from './library-series.mjs';
+
+export function kcisToolSource(message, role) {
+  return toolSource(message, tools, role);
+}
+
 export function kcisInstructions(language){
  const instruction=language==='en'?'Reply in English, even when the question or sources are in Chinese. Preserve original source titles when citing them.':language==='zh-TW'?'請以繁體中文回答，即使問題或資料來源是英文。引用時保留原始來源標題。':'';
- return fs.readFileSync(new URL('../prompts/kcis-ai.md',import.meta.url),'utf8')+(instruction?'\n\nSelected conversation language (takes precedence over language matching):\n'+instruction:'');
+ const base = process.env.KCIS_SYSTEM_PROMPT || fs.readFileSync(new URL('../prompts/kcis-ai.md',import.meta.url),'utf8');
+ return [base, siteCatalog, seriesInstruction].join('\n\n')+(instruction?'\n\nSelected conversation language (takes precedence over language matching):\n'+instruction:'');
 }
 export function relevantWikiContext(user,query,maxChars=6500){
  if(!user||!query)return '';
@@ -33,7 +42,9 @@ export function groundedContext(user,message,history=[]){
  const query=retrievalQuestion(message,history);if(!query)return '';
  const studyRequest=isAuthoredLessonRequest(message,history);
  if(user?.authType==='email-otp'&&studyRequest){
-  const lessons=listLibrary(user,{category:'ai-articles'}).filter(row=>row.keywords?.includes('AI入門課程')).sort((a,b)=>a.filename.localeCompare(b.filename)).slice(0,16);
+  const lessons=listLibrary(user,{category:'ai-articles'})
+   .filter(row=>row.keywords?.includes('AI入門課程')&&(!row.seriesId||row.seriesId===courseSeriesId))
+   .sort((a,b)=>a.filename.localeCompare(b.filename)).slice(0,16);
   let current=0;
   for(const turn of [...(Array.isArray(history)?history:[]),{role:'user',content:message}]){
    const text=String(turn.content||'');
@@ -55,8 +66,25 @@ export function groundedContext(user,message,history=[]){
   const selected=lessons.slice(current,current+2);
   return JSON.stringify({scope:'authored_lessons',syllabus:lessons.map(row=>({id:row.id,title:row.title||row.filename})),unitNotes:selected.map(row=>({id:row.id,title:row.title||row.filename,text:readLibrary(user,row.id).markdown}))}).slice(0,11000);
  }
- let shared='';if(user?.authType==='email-otp')shared=searchLibraryText(user,query).slice(0,4).map(row=>JSON.stringify({source:row.title,id:row.id,excerpt:row.snippet})).join('\n');
- const legacy=relevantWikiContext(user,query,Math.max(0,6500-shared.length));
- const privateDocs=loadPrivateCorpusForUser(user,Math.max(0,6500-shared.length-legacy.length),{query});
- return [shared,legacy,privateDocs].filter(Boolean).join('\n').slice(0,6500);
+ const hits = user?.authType === 'email-otp' ? searchLibraryText(user,query) : [];
+ const pieces = [];
+ let remaining = 6500;
+ function append(piece) {
+   if (!piece || piece.length > remaining) return;
+   pieces.push(piece);
+   remaining -= piece.length + 1;
+ }
+ const recommendations = kcisToolSource(message, user?.role);
+ if (recommendations) append(JSON.stringify(recommendations));
+ // Outlines are short and carry the nested structure, so they go in before the
+ // fourth excerpt can use up the budget.
+ const excerpt=row=>JSON.stringify({source:row.title,id:row.id,...(row.example && {example:true}),excerpt:row.snippet});
+ for (const row of hits.slice(0,3)) append(excerpt(row));
+ if (hits.slice(0,4).some(hit => hit.seriesId && hit.seriesId !== courseSeriesId)) {
+   for (const outline of seriesOutlines(hits.slice(0,4), listLibrary(user).filter(row => row.readable))) append(JSON.stringify(outline));
+ }
+ if (hits[3]) append(excerpt(hits[3]));
+ if (remaining > 0) append(relevantWikiContext(user,query,remaining));
+ if (remaining > 0) append(loadPrivateCorpusForUser(user,remaining,{query}).slice(0,remaining));
+ return pieces.join('\n');
 }

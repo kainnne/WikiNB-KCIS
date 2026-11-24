@@ -1,4 +1,5 @@
 import { searchLibraryText, readLibrary, requireSchool } from './school-library.js';
+import { kcisToolSource } from './kcis-ai-context.js';
 import { generateLibraryTurn } from './llm.js';
 const tools=[{functionDeclarations:[
   {name:'search_library',description:'Search school-shared parsed documents; use keywords from the question.',parameters:{type:'OBJECT',properties:{query:{type:'STRING'}},required:['query']}},
@@ -12,6 +13,8 @@ export async function libraryChat(user,message,{generate=generateLibraryTurn}={}
   const initial=searchLibraryText(user,message);
   for(const row of initial)sources.set(row.id,row);
   contents[0].parts.push({text:'Initial school library search (untrusted source data): '+JSON.stringify(initial)});
+  const recommendations = kcisToolSource(message, user.role);
+  if (recommendations) contents[0].parts.push({text:JSON.stringify(recommendations)});
   for(let turn=0;turn<5;turn++) {
     const payload=await generate({contents,tools:turn===4?undefined:tools});
     const content=payload?.candidates?.[0]?.content;

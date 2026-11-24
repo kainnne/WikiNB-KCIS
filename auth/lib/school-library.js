@@ -1,7 +1,9 @@
+import {articleFrontmatter} from './library-series.mjs';
 import {queryTerms,relevantExcerpt} from './retrieval.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID, timingSafeEqual, createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { isAllowedLoginEmail } from './domain.js';
 import { accountKeywords } from './account.js';
 
@@ -90,7 +92,11 @@ function save(rows) { atomic(path.join(root(),'manifest.json'),JSON.stringify(ro
 let queue=Promise.resolve();
 function serialized(fn) { const result=queue.then(fn); queue=result.catch(()=>{}); return result; }
 function recordPath(record,file='') { return path.join(root(),record.role,record.category,record.id,file); }
-function publicRecord(row) { const { ownerEmail,ownerSubject,accountKeywords,profileUpdatedAt, ...item }=row; return item; }
+function publicRecord(row) {
+  const { ownerEmail,ownerSubject,accountKeywords,profileUpdatedAt, ...item }=row;
+  if (row.series_id) item.seriesId=row.series_id;
+  return item;
+}
 export function accountSubject(email){return createHash('sha256').update('account:'+String(email).trim().toLowerCase()).digest('hex');}
 function profiles(){const file=path.join(root(),'account-profiles.json');return fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{};}
 function profileMarkdown(text,row){
@@ -208,7 +214,10 @@ export function searchLibraryText(user,query,{category='',source=''}={}) {
     const text=fs.readFileSync(recordPath(row,'content.md'),'utf8').slice(0,100000);
     const normalizedText=normalized(row.filename+' '+(row.keywords||[]).join(' ')+' '+text);
     const score=terms.reduce((n,t)=>n+(normalizedText.includes(t)?1:0),0);
-    return {id:row.id,title:row.filename,role:row.role,category:row.category,score,snippet:relevantExcerpt(text,terms,1600)};
+    return {
+      id:row.id,title:row.series_id ? row.title || row.filename : row.filename,role:row.role,category:row.category,
+      ...(row.series_id && {seriesId:row.series_id}), ...(row.example === true && {example:true}),score,snippet:relevantExcerpt(text,terms,1600),
+    };
   });
   return rows.filter(r=>!terms.length||r.score).sort((a,b)=>b.score-a.score).slice(0,8);
 }
@@ -229,16 +238,58 @@ export async function ingestForumArticle(input) {
  });
 }
 
-// Operator-only import for the bundled, reviewed curriculum. Not an HTTP route.
+// Operator-only import for bundled, reviewed articles. Not an HTTP route.
 export async function installCourseLesson({filename,markdown}) {
- if(!/^[a-z0-9-]+\.md$/.test(filename)||typeof markdown!=='string'||markdown.length>30000)throw Error('Invalid lesson');
- return serialized(()=>{
-  const rows=manifest(),hash=createHash('sha256').update(markdown).digest('hex'),existing=rows.find(r=>r.source==='curriculum'&&r.sourceFile===filename);
-  if(existing?.contentHash===hash)return {id:existing.id,duplicate:true};
-  const title=JSON.parse(markdown.match(/^title: (.+)$/m)?.[1]||JSON.stringify(filename));
-  const now=new Date().toISOString(),row=existing||{id:randomUUID(),role:'teachers',category:'ai-articles',source:'curriculum',sourceFile:filename,createdAt:now,ownerEmail:'kainnne@kcis.com.tw'};
-  Object.assign(row,{title,filename:title+'.md',uploader:'朱璽',keywords:['朱璽','教職員','AI入門課程','AI'],updatedAt:now,hasMarkdown:true,readable:true,status:'readable',size:Buffer.byteLength(markdown),preview:markdown.slice(0,400),contentHash:hash,sourceVersion:(existing?.sourceVersion||0)+1});
-  fs.mkdirSync(recordPath(row,'versions'),{recursive:true});atomic(recordPath(row,`versions/v${row.sourceVersion}.md`),markdown);atomic(recordPath(row,'content.md'),markdown);atomic(recordPath(row,'original'),markdown);
-  if(!existing)rows.push(row);save(rows);return {id:row.id,duplicate:false};
- });
+  if (typeof filename !== 'string' || !/^[a-z0-9-]+(?:\/[a-z0-9-]+)*\.md$/.test(filename)
+      || typeof markdown !== 'string' || markdown.length > 30000) throw Error('Invalid lesson');
+  const fields = articleFrontmatter(markdown);
+  const title = typeof fields.title === 'string' ? fields.title : filename;
+  const metadata = {
+    title,
+    filename: title + '.md',
+    uploader: typeof fields.author === 'string' ? fields.author : '朱璽',
+    keywords: Array.isArray(fields.keywords) && fields.keywords.every(word => typeof word === 'string')
+      ? fields.keywords : ['朱璽','教職員','AI入門課程','AI'],
+    category: CATEGORIES.some(category => category.id === fields.category) ? fields.category : 'ai-articles',
+    series: typeof fields.series === 'string' ? fields.series : undefined,
+    series_id: typeof fields.series_id === 'string' ? fields.series_id : undefined,
+    unit: Number.isInteger(fields.unit) ? fields.unit : undefined,
+    parent: typeof fields.parent === 'string' ? fields.parent : undefined,
+    example: typeof fields.example === 'boolean' ? fields.example : undefined,
+  };
+  return serialized(() => {
+    const rows = manifest();
+    const index = rows.findIndex(row => row.source === 'curriculum' && row.sourceFile === filename);
+    const existing = rows[index];
+    const hash = createHash('sha256').update(markdown).digest('hex');
+    const duplicate = existing?.contentHash === hash;
+    if (duplicate && Object.keys(metadata).every(key => isDeepStrictEqual(existing[key], metadata[key]))) {
+      return {id:existing.id,duplicate:true};
+    }
+    const now = new Date().toISOString();
+    const row = {
+      ...(existing || {id:randomUUID(),role:'teachers',source:'curriculum',sourceFile:filename,createdAt:now,ownerEmail:'kainnne@kcis.com.tw'}),
+      ...metadata,
+      updatedAt:now,hasMarkdown:true,readable:true,status:'readable',size:Buffer.byteLength(markdown),
+      preview:markdown.slice(0,400),contentHash:hash,
+      sourceVersion:duplicate ? existing.sourceVersion : (existing?.sourceVersion || 0) + 1,
+    };
+    const moved = existing && existing.category !== row.category;
+    if (moved) fs.renameSync(recordPath(existing), recordPath(row));
+    try {
+      if (!duplicate) {
+        fs.mkdirSync(recordPath(row,'versions'), {recursive:true});
+        atomic(recordPath(row,`versions/v${row.sourceVersion}.md`), markdown);
+        atomic(recordPath(row,'content.md'), markdown);
+        atomic(recordPath(row,'original'), markdown);
+      }
+      if (existing) rows[index] = row;
+      else rows.push(row);
+      save(rows);
+    } catch (error) {
+      if (moved) fs.renameSync(recordPath(row), recordPath(existing));
+      throw error;
+    }
+    return {id:row.id,duplicate};
+  });
 }

@@ -129,5 +129,6 @@ export function publicDocument(row) {
     profileUpdatedAt,
     ...safe
   } = JSON.parse(row.metadata);
+  if (safe.series_id) safe.seriesId = safe.series_id;
   return safe;
 }

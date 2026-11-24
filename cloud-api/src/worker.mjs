@@ -546,7 +546,7 @@ export default {
           path === "/api/library/chat" ||
           url.searchParams.get("stream") !== "1"
         )
-          return json(await chatAnswer(env, body));
+          return json(await chatAnswer(env, body, user.role));
         const stream = new ReadableStream({
           start(controller) {
             const encoder = new TextEncoder(),
@@ -555,7 +555,7 @@ export default {
                   encoder.encode("data: " + JSON.stringify(value) + "\n\n"),
                 );
             send({ type: "start", provider: "gemini", model: env.LLM_MODEL });
-            const task = chatAnswer(env, body)
+            const task = chatAnswer(env, body, user.role)
               .then((answer) => {
                 send({ type: "delta", text: answer.answer });
                 send({ type: "done", ...answer });
