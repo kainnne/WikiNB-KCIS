@@ -343,7 +343,7 @@ const humanHelp = (env) => `Human help
 - Then say it once, briefly, in the user's language: contact the IT team's digital learning engineer Kaine Zhu (資訊組 數位教學工程師 朱璽) by ${env.AI_HUMAN_CONTACT || "Google Chat, school email, or school extension #2702"}. Write the contact methods exactly as given, as one short bullet list. Ask them to include what they were doing and this answer's trace code (追溯碼 in Chinese), so the engineer can find this conversation. Quote only the code given in the input after "Trace code for this answer" and label it 追溯碼 in Chinese or trace code in English; never make one up.
 - You cannot forward messages, open tickets or contact anyone yourself. Never say you have passed the request on; tell the user how to reach the engineer.
 - Do not promise a reply time or that the problem will be fixed. Do not guess a specific teacher's name or contact; Kaine Zhu will pass the request on. Keep helping with anything you can answer meanwhile.`;
-const HELP_LINE = " Need help? Contact 資訊組 朱璽 (Kaine Zhu), ext. #2702.";
+const HELP_LINE = " Need help? Contact 資訊組 朱璽 (Kaine Zhu) by Google Chat or email, or visit the IT office.";
 async function logAi(env, row) {
   await env.DB.prepare("INSERT INTO ai_logs(trace,time,who,role,model,input,output,cached,ms,status,detail) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
     .bind(row.trace, new Date().toISOString(), row.who || "", row.role || "", row.model || "", row.input || 0, row.output || 0, row.cached || 0, row.ms || 0, row.status, row.detail || "")
