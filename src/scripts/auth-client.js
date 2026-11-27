@@ -58,6 +58,10 @@ function setStoredToken(token) {
   }
 }
 
+/** The sign-in dialog (school-account.js) shares this token so phones, which block the API cookie, stay signed in. */
+export function sessionToken() { return getStoredToken(); }
+export function rememberSessionToken(token) { if (token) setStoredToken(token); }
+
 /** 同步提示：僅有 localStorage token。不可當成資安依據，只用來決定連到 login 還是 note。 */
 export function hasSessionHint() {
   try { return Boolean(getStoredToken() || localStorage.getItem('wikinb_kcis_signed_in')); } catch { return false; }

@@ -1,5 +1,5 @@
 import { t, uiError } from './i18n.js';
-import { getAuthUrl, clearSessionHint } from './auth-client.js';
+import { getAuthUrl, clearSessionHint, sessionToken, rememberSessionToken } from './auth-client.js';
 export async function mountSchoolAccount({onChange=()=>{}}={}) {
  const el=id=>document.getElementById(id),dialog=el('school-account-dialog');if(!dialog||dialog.dataset.mounted)return;dialog.dataset.mounted='true';
  let user=null,view='login',step='email',busy=false,composing=false;
@@ -8,11 +8,15 @@ export async function mountSchoolAccount({onChange=()=>{}}={}) {
  el('school-nickname').addEventListener('keydown',event=>{if(event.key==='Enter'&&(composing||event.isComposing||event.keyCode===229))event.preventDefault();});
  async function request(path,body,method){
   const base=getAuthUrl();if(!base)throw Error('Sign-in is not connected');
-  const response=await fetch(base+'/api/auth/'+path,{method:method||(body===undefined?'GET':'POST'),credentials:'include',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(path==='send-code'?75000:15000)});
-  const data=await response.json();if(!response.ok)throw Object.assign(Error(data.error||'Connection failed'),{status:response.status});return data;
+  // Phones block the API's cross-site cookie, so send the stored token and keep the newest one from every reply.
+  const token=sessionToken(),headers={'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})};
+  const response=await fetch(base+'/api/auth/'+path,{method:method||(body===undefined?'GET':'POST'),credentials:'include',headers,body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(path==='send-code'?75000:15000)});
+  const data=await response.json();if(!response.ok)throw Object.assign(Error(data.error||'Connection failed'),{status:response.status});
+  if(typeof data.token==='string')rememberSessionToken(data.token);
+  return data;
  }
  async function refresh(){try{user=(await request('shared-session')).user;}catch(e){if([401,403].includes(e.status))user=null;else throw e;}return user;}
- async function changed(){clearSessionHint({notify:!user});try{localStorage.setItem('kcis:auth-change',String(Date.now()));}catch{}await onChange();const updates=[];window.dispatchEvent(new CustomEvent('kcis:account-updated',{detail:{user,waitUntil:promise=>updates.push(promise)}}));await Promise.all(updates);}
+ async function changed(){if(user){try{localStorage.setItem('wikinb_kcis_signed_in','1');}catch{}}else clearSessionHint();try{localStorage.setItem('kcis:auth-change',String(Date.now()));}catch{}await onChange();const updates=[];window.dispatchEvent(new CustomEvent('kcis:account-updated',{detail:{user,waitUntil:promise=>updates.push(promise)}}));await Promise.all(updates);}
  function finishLogin(){
   const next=new URLSearchParams(location.search).get('next');
   if(/\/login(?:\/|$)/.test(location.pathname)&&next){try{const url=new URL(next,location.origin);if(url.origin===location.origin&&!url.username&&!url.password)location.assign(url.href);}catch{}}
