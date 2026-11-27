@@ -63,18 +63,32 @@ export async function authenticated(request, env) {
       /^Bearer /,
       "",
     );
-  const claim = await verifyToken(raw || bearer, env.SESSION_SECRET);
-  if (!claim || !allowedEmail(claim.email, env))
-    fail(401, "Sign in with your school email.");
-  if (!claim.sid)
-    fail(401, "Please verify your email again for the cloud service.");
-  const session = await env.DB.prepare(
-    "SELECT email FROM sessions WHERE id=? AND expires_at>?",
-  )
-    .bind(claim.sid, Date.now())
-    .first();
-  if (!session || session.email !== claim.email)
-    fail(401, "Please sign in again.");
+  // Try the Bearer token the page sends first, then the cookie. Safari and other browsers block this cross-site
+  // cookie, and a stale cookie (or a stale stored token) must not lock out a valid one: phones bounced back to
+  // signed-out when an old cookie was checked instead of the fresh token.
+  let claim = null,
+    reason = "Sign in with your school email.";
+  for (const token of [bearer, raw]) {
+    if (!token) continue;
+    const candidate = await verifyToken(token, env.SESSION_SECRET);
+    if (!candidate || !allowedEmail(candidate.email, env)) continue;
+    if (!candidate.sid) {
+      reason = "Please verify your email again for the cloud service.";
+      continue;
+    }
+    const session = await env.DB.prepare(
+      "SELECT email FROM sessions WHERE id=? AND expires_at>?",
+    )
+      .bind(candidate.sid, Date.now())
+      .first();
+    if (!session || session.email !== candidate.email) {
+      reason = "Please sign in again.";
+      continue;
+    }
+    claim = candidate;
+    break;
+  }
+  if (!claim) fail(401, reason);
   const user = await getUser(env, claim.email);
   if (!user?.verifiedAt) fail(401, "Email verification required.");
   return { user, sid: claim.sid };
@@ -436,7 +450,7 @@ export default {
           {
             ok: true,
             user: publicUser(user),
-            token: await signToken(payload(user, sid), env.SESSION_SECRET),
+            token: await signToken(payload(user, sid), env.SESSION_SECRET, days),
             admin: user.email === "kainnne@kcis.com.tw",
           },
           200,
@@ -474,7 +488,7 @@ export default {
       if (path === "/api/auth/shared-session" && method === "GET")
         return json({
           user: publicUser(user),
-          token: await signToken(payload(user, sid), env.SESSION_SECRET),
+          token: await signToken(payload(user, sid), env.SESSION_SECRET, days),
           admin: user.email === "kainnne@kcis.com.tw",
         });
       if (path === "/api/auth/logout" && method === "POST") {
