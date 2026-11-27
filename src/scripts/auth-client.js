@@ -316,9 +316,17 @@ function requestSharedSession() {
 }
 
 export async function fetchMe(options = {}) {
-  const timeoutMs = Number(options.timeoutMs ?? 4000);
+  // Phones on school Wi-Fi or mobile data can take several seconds; 4 s made a fresh sign-in look signed out.
+  const timeoutMs = Number(options.timeoutMs ?? 12000);
   try {
-    const shared = await withTimeout(requestSharedSession(), timeoutMs, 'auth-me-timeout');
+    let shared;
+    try {
+      shared = await withTimeout(requestSharedSession(), timeoutMs, 'auth-me-timeout');
+    } catch (err) {
+      if (err?.status || !getStoredToken()) throw err;
+      shared = await withTimeout(requestSharedSession(), timeoutMs, 'auth-me-timeout');
+    }
+    rememberSessionFrom(shared);
     const data = { ...shared, authenticated: Boolean(shared.user) };
     try { if(data.authenticated)localStorage.setItem('wikinb_kcis_signed_in','1'); } catch {}
     if (!data?.authenticated) {
